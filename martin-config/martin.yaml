@@ -1,0 +1,89 @@
+# ============================================================
+# Martin Configuration
+# Docs: https://maplibre.org/martin/
+# ============================================================
+
+# Listen address
+listen_addresses: "0.0.0.0:3000"
+
+# Web UI (catalog of all available tile sources)
+web_ui:
+  enabled: true
+
+# ============================================================
+# Database connection
+# ============================================================
+postgres:
+  connection_string: ${DATABASE_URL}
+
+  # Connection pool — tune based on your load
+  pool_size: 20
+  
+  # Auto-discover ALL tables/views/functions with geometry columns
+  auto_publish:
+    tables:
+      from_schemas:
+        - public
+        - gis       # add your custom schemas here
+      # Only publish tables that have a geometry column
+      id_columns:
+        - id
+        - gid
+        - ogc_fid
+    functions:
+      from_schemas:
+        - public
+        - gis
+
+# ============================================================
+# Explicit table sources (optional — override auto-publish)
+# These take precedence and let you control tile parameters
+# ============================================================
+# sources:
+#   my_layer:
+#     schema: public
+#     table: my_spatial_table
+#     srid: 4326
+#     geometry_column: geom
+#     id_column: id
+#     minzoom: 0
+#     maxzoom: 22
+#     extent: [-180, -90, 180, 90]
+#     buffer: 64
+#     clip_geom: true
+#     geometry_type: GEOMETRY
+#     properties:
+#       name: text
+#       category: text
+
+# ============================================================
+# MBTiles / PMTiles file sources (dropped in ./tiles/ volume)
+# ============================================================
+# file_sources:
+#   - path: /tiles
+#     unrecognized_schema: warn
+
+# ============================================================
+# Sprite and font sources (for MapLibre GL)
+# ============================================================
+# sprites:
+#   my_sprites: /sprites
+
+# fonts:
+#   - /fonts
+
+# ============================================================
+# CORS — allow all origins (restrict in production)
+# ============================================================
+cors:
+  allowed_origins:
+    - "*"
+  allowed_methods:
+    - GET
+    - HEAD
+    - OPTIONS
+
+# ============================================================
+# Caching headers
+# ============================================================
+cache_size: 1024   # in-memory tile cache entries

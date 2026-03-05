@@ -1,0 +1,172 @@
+services:
+
+  # ============================================================
+  # PostGIS — Spatial Database
+  # ============================================================
+  postgis:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: gis_postgis
+    platform: linux/amd64   # M1 compatible via Rosetta; change to linux/arm64/v8 if you prefer native
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gisdb}
+      POSTGRES_USER: ${POSTGRES_USER:-gisuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      # Tune for spatial workloads
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=en_US.UTF-8"
+    volumes:
+      - postgis_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d:ro   # Auto-run SQL on first start
+    ports:
+      - "${POSTGIS_PORT:-5432}:5432"
+    networks:
+      - gis_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gisuser} -d ${POSTGRES_DB:-gisdb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    shm_size: 256mb   # Needed for large spatial queries / PostGIS parallelism
+
+  # ============================================================
+  # GeoServer — OGC Services (WMS, WFS, WCS, WMTS)
+  #             Raster + Vector, complex SLD styling
+  # ============================================================
+  geoserver:
+    image: kartoza/geoserver:2.24.2
+    container_name: gis_geoserver
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      GEOSERVER_DATA_DIR: /opt/geoserver/data_dir
+      GEOWEBCACHE_CACHE_DIR: /opt/geoserver/data_dir/gwc
+      GEOSERVER_ADMIN_USER: ${GEOSERVER_ADMIN_USER:-admin}
+      GEOSERVER_ADMIN_PASSWORD: ${GEOSERVER_ADMIN_PASSWORD:?GEOSERVER_ADMIN_PASSWORD must be set}
+      INITIAL_MEMORY: ${GEOSERVER_INITIAL_MEMORY:-512M}
+      MAXIMUM_MEMORY: ${GEOSERVER_MAXIMUM_MEMORY:-1536M}
+      # Allow CORS for web clients
+      CORS_ENABLED: "true"
+      CORS_ALLOWED_ORIGINS: "*"
+      # Improve startup time
+      SKIP_DEMO_DATA: "true"
+      # JVM tuning for M1 / Linux
+      EXTRA_JAVA_OPTS: >-
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -Dfile.encoding=UTF-8
+    volumes:
+      - geoserver_data:/opt/geoserver/data_dir
+    ports:
+      - "${GEOSERVER_PORT:-8080}:8080"
+    networks:
+      - gis_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/geoserver/web/ || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 90s   # GeoServer is slow to boot
+
+  # ============================================================
+  # Martin — High-performance MVT tile server from PostGIS
+  #          Perfect for modern vector tile pipelines
+  # ============================================================
+  martin:
+    image: ghcr.io/maplibre/martin:v0.13.0
+    container_name: gis_martin
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    command: ["--config", "/config/martin.yaml"]
+    environment:
+      # Fallback connection string (overridden by config file)
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gisuser}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB:-gisdb}
+    volumes:
+      - ./martin-config/martin.yaml:/config/martin.yaml:ro
+      # Optional: serve MBTiles / PMTiles files directly
+      - ./tiles:/tiles:ro
+    ports:
+      - "${MARTIN_PORT:-3000}:3000"
+    networks:
+      - gis_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ============================================================
+  # pgAdmin — PostGIS GUI (disable in prod if not needed)
+  # ============================================================
+  pgadmin:
+    image: dpage/pgadmin4:8.5
+    container_name: gis_pgadmin
+    platform: linux/amd64
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@gis.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?PGADMIN_PASSWORD must be set}
+      PGADMIN_CONFIG_SERVER_MODE: "False"   # Single-user desktop mode
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin-config/servers.json:/pgadmin4/servers.json:ro  # Auto-register PostGIS
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    networks:
+      - gis_net
+
+  # ============================================================
+  # Nginx — Reverse proxy, unify everything on port 80
+  # ============================================================
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: gis_nginx
+    restart: unless-stopped
+    depends_on:
+      geoserver:
+        condition: service_healthy
+      martin:
+        condition: service_healthy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    networks:
+      - gis_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+# ============================================================
+# Volumes
+# ============================================================
+volumes:
+  postgis_data:
+    driver: local
+  geoserver_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+# ============================================================
+# Network — isolated bridge, no external exposure except ports
+# ============================================================
+networks:
+  gis_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

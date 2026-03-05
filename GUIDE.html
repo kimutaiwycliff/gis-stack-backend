@@ -1,0 +1,1776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GIS Stack — Operations Playbook</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f0d;
+    --bg2: #0f1612;
+    --bg3: #141f19;
+    --surface: #1a2820;
+    --surface2: #1f3028;
+    --border: #2a4035;
+    --border2: #355040;
+    --accent: #3dff8f;
+    --accent2: #00c96e;
+    --accent3: #ff6b35;
+    --accent4: #38bdf8;
+    --accent5: #f59e0b;
+    --text: #d4f0e4;
+    --text2: #8ab89e;
+    --text3: #527a63;
+    --martin: #38bdf8;
+    --postgis: #f59e0b;
+    --geoserver: #ff6b35;
+    --nginx: #a78bfa;
+    --pgadmin: #fb923c;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid noise overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(61,255,143,0.015) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(61,255,143,0.015) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Layout ── */
+  .shell {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    min-height: 100vh;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── Sidebar ── */
+  nav {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    background: var(--bg2);
+    border-right: 1px solid var(--border);
+    padding: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+
+  .nav-header {
+    padding: 24px 20px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .nav-logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .nav-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--text);
+    line-height: 1.2;
+  }
+
+  .nav-section {
+    padding: 16px 0 8px;
+  }
+
+  .nav-section-label {
+    padding: 0 20px 6px;
+    font-size: 9px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text3);
+    font-weight: 700;
+  }
+
+  nav a {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 20px;
+    color: var(--text2);
+    text-decoration: none;
+    font-size: 12px;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+  }
+
+  nav a:hover {
+    color: var(--text);
+    background: var(--surface);
+    border-left-color: var(--accent);
+  }
+
+  nav a.active {
+    color: var(--accent);
+    border-left-color: var(--accent);
+    background: rgba(61,255,143,0.05);
+  }
+
+  .nav-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ── Main content ── */
+  main {
+    padding: 0;
+    max-width: 100%;
+  }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 60px 56px 48px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::after {
+    content: '';
+    position: absolute;
+    top: -100px;
+    right: -100px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(61,255,143,0.04) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-eyebrow {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--accent2);
+    font-weight: 700;
+    margin-bottom: 12px;
+  }
+
+  .hero h1 {
+    font-family: 'Syne', sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1.05;
+    margin-bottom: 16px;
+  }
+
+  .hero h1 span { color: var(--accent); }
+
+  .hero-sub {
+    color: var(--text2);
+    font-size: 13px;
+    max-width: 560px;
+    line-height: 1.8;
+    margin-bottom: 32px;
+  }
+
+  /* Stack badges */
+  .stack-badges {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border: 1px solid;
+  }
+
+  .badge-postgis { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.3); color: var(--postgis); }
+  .badge-geoserver { background: rgba(255,107,53,0.1); border-color: rgba(255,107,53,0.3); color: var(--geoserver); }
+  .badge-martin { background: rgba(56,189,248,0.1); border-color: rgba(56,189,248,0.3); color: var(--martin); }
+  .badge-nginx { background: rgba(167,139,250,0.1); border-color: rgba(167,139,250,0.3); color: var(--nginx); }
+  .badge-pgadmin { background: rgba(251,146,60,0.1); border-color: rgba(251,146,60,0.3); color: var(--pgadmin); }
+
+  /* ── Sections ── */
+  section {
+    padding: 48px 56px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  section:last-child { border-bottom: none; }
+
+  .section-eyebrow {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--text3);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-family: 'Syne', sans-serif;
+    font-size: 26px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  h2 .tag {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 400;
+    margin-left: 8px;
+    vertical-align: middle;
+    position: relative;
+    top: -3px;
+  }
+
+  .section-desc {
+    color: var(--text2);
+    margin-bottom: 28px;
+    max-width: 680px;
+    line-height: 1.8;
+    font-size: 13px;
+  }
+
+  h3 {
+    font-family: 'Syne', sans-serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 10px;
+    margin-top: 28px;
+  }
+
+  h3:first-of-type { margin-top: 0; }
+
+  /* ── Code blocks ── */
+  .code-block {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .code-label {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .copy-btn {
+    background: none;
+    border: 1px solid var(--border2);
+    color: var(--text3);
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-family: 'JetBrains Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .copy-btn:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(61,255,143,0.05);
+  }
+
+  .copy-btn.copied {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  pre {
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: 12.5px;
+    line-height: 1.75;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border2) transparent;
+  }
+
+  code { font-family: 'JetBrains Mono', monospace; }
+
+  /* Syntax colors */
+  .kw { color: #ff6b35; }       /* keywords */
+  .str { color: #3dff8f; }      /* strings */
+  .cmt { color: #527a63; font-style: italic; } /* comments */
+  .fn { color: #38bdf8; }       /* functions */
+  .num { color: #f59e0b; }      /* numbers */
+  .var { color: #d4f0e4; }      /* variables */
+  .op { color: #a78bfa; }       /* operators / SQL keywords */
+  .url { color: #38bdf8; text-decoration: underline; }
+  .flag { color: #fb923c; }     /* cli flags */
+
+  /* ── Info cards ── */
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    transition: border-color 0.2s;
+  }
+
+  .card:hover { border-color: var(--border2); }
+
+  .card-icon {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
+  .card-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .card-body {
+    color: var(--text2);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  /* ── Flow diagram ── */
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-wrap: wrap;
+    margin: 20px 0;
+  }
+
+  .flow-node {
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    border: 1px solid;
+    white-space: nowrap;
+  }
+
+  .flow-arrow {
+    padding: 0 8px;
+    color: var(--text3);
+    font-size: 16px;
+  }
+
+  /* ── Endpoint table ── */
+  .ep-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 24px;
+    font-size: 12px;
+  }
+
+  .ep-table th {
+    text-align: left;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text3);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .ep-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .ep-table tr:last-child td { border-bottom: none; }
+  .ep-table tr:hover td { background: var(--surface); }
+
+  .ep-url {
+    color: var(--accent4);
+    font-size: 11.5px;
+  }
+
+  .ep-service {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+
+  /* ── Tip boxes ── */
+  .tip {
+    display: flex;
+    gap: 12px;
+    padding: 14px 16px;
+    border-radius: 6px;
+    margin: 16px 0;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+
+  .tip-info { background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.2); }
+  .tip-warn { background: rgba(245,158,11,0.07); border: 1px solid rgba(245,158,11,0.2); }
+  .tip-ok   { background: rgba(61,255,143,0.07); border: 1px solid rgba(61,255,143,0.2); }
+  .tip-danger { background: rgba(255,107,53,0.07); border: 1px solid rgba(255,107,53,0.2); }
+
+  .tip-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .tip-info .tip-body { color: #7dd3fc; }
+  .tip-warn .tip-body { color: #fcd34d; }
+  .tip-ok .tip-body   { color: var(--accent); }
+  .tip-danger .tip-body { color: #fca5a5; }
+
+  /* ── Workflow steps ── */
+  .steps {
+    counter-reset: steps;
+    list-style: none;
+    margin: 0 0 20px;
+  }
+
+  .steps li {
+    counter-increment: steps;
+    display: flex;
+    gap: 14px;
+    margin-bottom: 14px;
+    align-items: flex-start;
+  }
+
+  .steps li::before {
+    content: counter(steps);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--surface2);
+    border: 1px solid var(--border2);
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .steps li .step-text { color: var(--text2); font-size: 12.5px; line-height: 1.7; }
+  .steps li .step-text strong { color: var(--text); }
+
+  /* ── Two-col layout ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 24px;
+  }
+
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; }
+    section, .hero { padding: 32px 24px; }
+    .two-col { grid-template-columns: 1fr; }
+  }
+
+  /* ── Inline code ── */
+  .ic {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 11.5px;
+    color: var(--accent);
+  }
+
+  /* ── Section accent colors ── */
+  .s-postgis h2 span.tag { background: rgba(245,158,11,0.15); color: var(--postgis); }
+  .s-geoserver h2 span.tag { background: rgba(255,107,53,0.15); color: var(--geoserver); }
+  .s-martin h2 span.tag { background: rgba(56,189,248,0.15); color: var(--martin); }
+  .s-workflow h2 span.tag { background: rgba(61,255,143,0.15); color: var(--accent); }
+
+  /* ── TOC scroll indicator ── */
+  #scroll-progress {
+    position: fixed;
+    top: 0;
+    left: 260px;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--accent), var(--martin));
+    transform-origin: left;
+    transform: scaleX(0);
+    transition: transform 0.1s;
+    z-index: 100;
+  }
+</style>
+</head>
+<body>
+
+<div id="scroll-progress"></div>
+
+<div class="shell">
+
+<!-- ══════════════════════════════════════════════════════════
+     SIDEBAR NAV
+══════════════════════════════════════════════════════════ -->
+<nav id="sidebar">
+  <div class="nav-header">
+    <div class="nav-logo">GIS Stack</div>
+    <div class="nav-title">Operations<br>Playbook</div>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Getting Started</div>
+    <a href="#start"><span class="nav-dot" style="background:#3dff8f"></span>Stack startup</a>
+    <a href="#endpoints"><span class="nav-dot" style="background:#3dff8f"></span>Service endpoints</a>
+    <a href="#architecture"><span class="nav-dot" style="background:#3dff8f"></span>Architecture</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">PostGIS</div>
+    <a href="#postgis-connect"><span class="nav-dot" style="background:#f59e0b"></span>Connecting</a>
+    <a href="#postgis-import"><span class="nav-dot" style="background:#f59e0b"></span>Importing data</a>
+    <a href="#postgis-spatial"><span class="nav-dot" style="background:#f59e0b"></span>Spatial queries</a>
+    <a href="#postgis-raster"><span class="nav-dot" style="background:#f59e0b"></span>Raster operations</a>
+    <a href="#postgis-index"><span class="nav-dot" style="background:#f59e0b"></span>Indexes & tuning</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">GeoServer</div>
+    <a href="#gs-setup"><span class="nav-dot" style="background:#ff6b35"></span>First setup</a>
+    <a href="#gs-workspace"><span class="nav-dot" style="background:#ff6b35"></span>Workspaces & stores</a>
+    <a href="#gs-wms"><span class="nav-dot" style="background:#ff6b35"></span>WMS</a>
+    <a href="#gs-wfs"><span class="nav-dot" style="background:#ff6b35"></span>WFS</a>
+    <a href="#gs-wmts"><span class="nav-dot" style="background:#ff6b35"></span>WMTS / caching</a>
+    <a href="#gs-sld"><span class="nav-dot" style="background:#ff6b35"></span>SLD styling</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Martin</div>
+    <a href="#martin-tiles"><span class="nav-dot" style="background:#38bdf8"></span>Vector tiles</a>
+    <a href="#martin-maplibre"><span class="nav-dot" style="background:#38bdf8"></span>MapLibre GL integration</a>
+    <a href="#martin-functions"><span class="nav-dot" style="background:#38bdf8"></span>SQL tile functions</a>
+  </div>
+
+  <div class="nav-section">
+    <div class="nav-section-label">Workflows</div>
+    <a href="#workflow-fullstack"><span class="nav-dot" style="background:#a78bfa"></span>Full pipeline</a>
+    <a href="#workflow-qgis"><span class="nav-dot" style="background:#a78bfa"></span>QGIS integration</a>
+    <a href="#workflow-ogr"><span class="nav-dot" style="background:#a78bfa"></span>ogr2ogr cheatsheet</a>
+    <a href="#workflow-backup"><span class="nav-dot" style="background:#a78bfa"></span>Backup & restore</a>
+    <a href="#workflow-debug"><span class="nav-dot" style="background:#a78bfa"></span>Debugging</a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════
+     MAIN CONTENT
+══════════════════════════════════════════════════════════ -->
+<main>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">// PostGIS · GeoServer · Martin · Nginx</div>
+  <h1>GIS Stack<br><span>Operations Guide</span></h1>
+  <p class="hero-sub">Everything you need to load, serve, query, and consume spatial data — from raw GeoTIFF ingestion to live vector tiles in your browser.</p>
+  <div class="stack-badges">
+    <span class="badge badge-postgis">◆ PostGIS 16</span>
+    <span class="badge badge-geoserver">◆ GeoServer 2.24</span>
+    <span class="badge badge-martin">◆ Martin 0.13</span>
+    <span class="badge badge-nginx">◆ Nginx</span>
+    <span class="badge badge-pgadmin">◆ pgAdmin 4</span>
+  </div>
+</div>
+
+<!-- ═══════════════════ STARTUP ═══════════════════ -->
+<section id="start">
+  <div class="section-eyebrow">// 01 — getting started</div>
+  <h2>Stack Startup</h2>
+  <p class="section-desc">Everything you need to bring the stack up, verify it's healthy, and know where each service lives.</p>
+
+  <h3>First-time setup</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt"># Clone your stack, then:</span>
+<span class="fn">cp</span> .env.example .env
+<span class="fn">nano</span> .env                    <span class="cmt"># Set all CHANGE_ME passwords</span>
+
+<span class="cmt"># Start everything (detached)</span>
+<span class="fn">make</span> up
+<span class="cmt"># or: docker compose up -d</span>
+
+<span class="cmt"># Watch services come alive</span>
+<span class="fn">docker</span> compose logs -f       <span class="cmt"># Ctrl+C to stop watching</span>
+
+<span class="cmt"># Verify all health checks pass (~2 min for GeoServer)</span>
+<span class="fn">make</span> health</code></pre>
+  </div>
+
+  <h3>Daily operations</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — make targets</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="fn">make</span> up            <span class="cmt"># Start stack</span>
+<span class="fn">make</span> down          <span class="cmt"># Stop stack (data persists in volumes)</span>
+<span class="fn">make</span> restart       <span class="cmt"># Restart all services</span>
+<span class="fn">make</span> ps            <span class="cmt"># Show container status + ports</span>
+<span class="fn">make</span> health        <span class="cmt"># Full health check + service URLs</span>
+<span class="fn">make</span> logs          <span class="cmt"># Tail all logs</span>
+<span class="fn">make</span> logs-db       <span class="cmt"># PostGIS logs only</span>
+<span class="fn">make</span> logs-gs       <span class="cmt"># GeoServer logs only</span>
+<span class="fn">make</span> shell-db      <span class="cmt"># psql shell into PostGIS</span>
+<span class="fn">make</span> backup        <span class="cmt"># Dump DB to ./backups/</span>
+<span class="fn">make</span> vacuum        <span class="cmt"># VACUUM ANALYZE database</span></code></pre>
+  </div>
+
+  <div class="tip tip-warn">
+    <span class="tip-icon">⚠</span>
+    <span class="tip-body">GeoServer takes 60–90 seconds to fully start. <code>make health</code> will show it as "starting" until it's ready. This is normal — its health check has a 90s start_period.</span>
+  </div>
+</section>
+
+<!-- ═══════════════════ ENDPOINTS ═══════════════════ -->
+<section id="endpoints">
+  <div class="section-eyebrow">// 02 — service map</div>
+  <h2>Service Endpoints</h2>
+  <p class="section-desc">All services accessible via Nginx proxy on port 80, or directly on their native ports.</p>
+
+  <table class="ep-table">
+    <tr>
+      <th>Service</th>
+      <th>Via Nginx (port 80)</th>
+      <th>Direct port</th>
+      <th>Purpose</th>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-geoserver">GeoServer</span></td>
+      <td><span class="ep-url">http://localhost/geoserver/web/</span></td>
+      <td><span class="ep-url">:8080</span></td>
+      <td style="color:var(--text2)">UI + OGC services</td>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-martin">Martin</span></td>
+      <td><span class="ep-url">http://localhost/tiles/</span></td>
+      <td><span class="ep-url">:3000</span></td>
+      <td style="color:var(--text2)">MVT tiles catalog</td>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-pgadmin">pgAdmin</span></td>
+      <td><span class="ep-url">http://localhost/pgadmin/</span></td>
+      <td><span class="ep-url">:5050</span></td>
+      <td style="color:var(--text2)">DB management UI</td>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-postgis">PostGIS</span></td>
+      <td>—</td>
+      <td><span class="ep-url">:5432</span></td>
+      <td style="color:var(--text2)">Direct DB connection</td>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-nginx">WMS (GeoServer)</span></td>
+      <td><span class="ep-url">http://localhost/geoserver/{ws}/wms?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities</span></td>
+      <td>—</td>
+      <td style="color:var(--text2)">OGC WMS endpoint</td>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-nginx">WFS (GeoServer)</span></td>
+      <td><span class="ep-url">http://localhost/geoserver/{ws}/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetCapabilities</span></td>
+      <td>—</td>
+      <td style="color:var(--text2)">OGC WFS endpoint</td>
+    </tr>
+    <tr>
+      <td><span class="ep-service badge badge-martin">Martin tile</span></td>
+      <td><span class="ep-url">http://localhost/tiles/{table_name}/{z}/{x}/{y}</span></td>
+      <td><span class="ep-url">:3000/{table}/{z}/{x}/{y}</span></td>
+      <td style="color:var(--text2)">MVT tile fetch</td>
+    </tr>
+  </table>
+</section>
+
+<!-- ═══════════════════ ARCHITECTURE ═══════════════════ -->
+<section id="architecture">
+  <div class="section-eyebrow">// 03 — architecture</div>
+  <h2>Data Flow Architecture</h2>
+  <p class="section-desc">Understanding which service to use for which task.</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🗄️</div>
+      <div class="card-title" style="color:var(--postgis)">PostGIS</div>
+      <div class="card-body">The source of truth. All vector and raster data lives here. GeoServer and Martin both read from PostGIS. Never write directly from clients — always go through a service.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🗺️</div>
+      <div class="card-title" style="color:var(--geoserver)">GeoServer</div>
+      <div class="card-body">OGC compliance layer. Use for WMS image maps, WFS feature downloads, WCS raster access, QGIS/ArcGIS integration, and complex SLD cartography. Caches tiles via GeoWebCache.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">⚡</div>
+      <div class="card-title" style="color:var(--martin)">Martin</div>
+      <div class="card-body">Speed-first vector tiles. Use for MapLibre GL / Mapbox GL web apps. Zero config — auto-discovers all PostGIS tables with geometry. Tiles are rendered client-side for full interactivity.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🔀</div>
+      <div class="card-title" style="color:var(--nginx)">Nginx</div>
+      <div class="card-body">Routes /geoserver/* → GeoServer:8080 and /tiles/* → Martin:3000. Adds tile caching headers and CORS. Single port 80 entry point for all services.</div>
+    </div>
+  </div>
+
+  <h3>Decision guide: GeoServer vs Martin</h3>
+  <table class="ep-table">
+    <tr><th>Use case</th><th>Use</th></tr>
+    <tr><td style="color:var(--text2)">QGIS / ArcGIS client connection</td><td><span class="ep-service badge badge-geoserver">GeoServer WMS/WFS</span></td></tr>
+    <tr><td style="color:var(--text2)">MapLibre GL / Mapbox web map</td><td><span class="ep-service badge badge-martin">Martin MVT</span></td></tr>
+    <tr><td style="color:var(--text2)">Serving a GeoTIFF as a map layer</td><td><span class="ep-service badge badge-geoserver">GeoServer WMS</span></td></tr>
+    <tr><td style="color:var(--text2)">Download features as GeoJSON/Shapefile</td><td><span class="ep-service badge badge-geoserver">GeoServer WFS</span></td></tr>
+    <tr><td style="color:var(--text2)">Interactive hover/popup on web map</td><td><span class="ep-service badge badge-martin">Martin MVT</span></td></tr>
+    <tr><td style="color:var(--text2)">Complex thematic cartography (SLD rules)</td><td><span class="ep-service badge badge-geoserver">GeoServer WMS</span></td></tr>
+    <tr><td style="color:var(--text2)">Pre-seeded tile cache for high traffic</td><td><span class="ep-service badge badge-geoserver">GeoServer WMTS</span></td></tr>
+    <tr><td style="color:var(--text2)">Real-time data from PostGIS, no cache</td><td><span class="ep-service badge badge-martin">Martin MVT</span></td></tr>
+    <tr><td style="color:var(--text2)">DEM / raster elevation access</td><td><span class="ep-service badge badge-geoserver">GeoServer WCS</span></td></tr>
+    <tr><td style="color:var(--text2)">Serve PMTiles / MBTiles static files</td><td><span class="ep-service badge badge-martin">Martin file source</span></td></tr>
+  </table>
+</section>
+
+<!-- ═══════════════════ POSTGIS CONNECT ═══════════════════ -->
+<section id="postgis-connect" class="s-postgis">
+  <div class="section-eyebrow">// PostGIS — 04</div>
+  <h2>PostGIS <span class="tag">connecting</span></h2>
+  <p class="section-desc">Multiple ways to connect depending on your tool.</p>
+
+  <div class="two-col">
+    <div>
+      <h3>psql (command line)</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">bash</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="cmt"># Via make (uses .env automatically)</span>
+<span class="fn">make</span> shell-db
+
+<span class="cmt"># Direct psql from host machine</span>
+<span class="fn">psql</span> <span class="flag">-h</span> localhost <span class="flag">-p</span> <span class="num">5432</span> \
+     <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb
+
+<span class="cmt"># Connection string format</span>
+<span class="fn">psql</span> <span class="str">"postgresql://gisuser:password@localhost:5432/gisdb"</span></code></pre>
+      </div>
+    </div>
+    <div>
+      <h3>QGIS</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">QGIS DB connection</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="cmt"># Layer → Add Layer → Add PostGIS Layer</span>
+Host:     localhost
+Port:     5432
+Database: gisdb
+User:     gisuser
+Password: your_password
+Schema:   gis          <span class="cmt"># or public</span>
+
+<span class="cmt"># ✅ Check "Also list tables with no geometry"</span>
+<span class="cmt"># ✅ Use estimated table metadata</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>Python (psycopg2 / SQLAlchemy / geopandas)</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">python</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="kw">import</span> geopandas <span class="kw">as</span> gpd
+<span class="kw">from</span> sqlalchemy <span class="kw">import</span> create_engine
+
+engine = create_engine(
+    <span class="str">"postgresql://gisuser:password@localhost:5432/gisdb"</span>
+)
+
+<span class="cmt"># Read a PostGIS layer into GeoDataFrame</span>
+gdf = gpd.read_postgis(
+    <span class="str">"SELECT * FROM gis.my_layer WHERE ST_Area(geom) > 1000"</span>,
+    con=engine,
+    geom_col=<span class="str">"geom"</span>
+)
+
+<span class="cmt"># Write a GeoDataFrame back to PostGIS</span>
+gdf.to_postgis(
+    <span class="str">"my_layer_processed"</span>,
+    engine,
+    schema=<span class="str">"gis"</span>,
+    if_exists=<span class="str">"replace"</span>,
+    index=<span class="kw">False</span>,
+    dtype={<span class="str">"geom"</span>: <span class="fn">Geometry</span>(<span class="str">"MULTIPOLYGON"</span>, srid=<span class="num">4326</span>)}
+)</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ POSTGIS IMPORT ═══════════════════ -->
+<section id="postgis-import" class="s-postgis">
+  <div class="section-eyebrow">// PostGIS — 05</div>
+  <h2>PostGIS <span class="tag">importing data</span></h2>
+  <p class="section-desc">Load any vector or raster format into PostGIS. ogr2ogr handles virtually every vector format; raster2pgsql handles rasters.</p>
+
+  <h3>ogr2ogr — any vector format (GeoPackage, Shapefile, GeoJSON…)</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — recommended pattern</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="fn">ogr2ogr</span> \
+  <span class="flag">-f</span> <span class="str">"PostgreSQL"</span> \
+  <span class="str">"PG:host=localhost port=5432 dbname=gisdb user=gisuser password=YOUR_PW"</span> \
+  input_data.gpkg \                <span class="cmt"># .shp .geojson .kml .gpkg .fgb etc.</span>
+  <span class="flag">-nln</span> my_layer_name \              <span class="cmt"># Output table name</span>
+  <span class="flag">-nlt</span> PROMOTE_TO_MULTI \            <span class="cmt"># Ensures consistent geometry type</span>
+  <span class="flag">-lco</span> SCHEMA=gis \                  <span class="cmt"># Target schema</span>
+  <span class="flag">-lco</span> GEOMETRY_NAME=geom \          <span class="cmt"># Standard column name</span>
+  <span class="flag">-lco</span> FID=id \                       <span class="cmt"># Primary key name</span>
+  <span class="flag">-t_srs</span> EPSG:4326 \                  <span class="cmt"># Reproject to WGS84 on import</span>
+  <span class="flag">--config</span> PG_USE_COPY YES \          <span class="cmt"># 10x faster for large datasets</span>
+  <span class="flag">-overwrite</span> \
+  <span class="flag">-progress</span></code></pre>
+  </div>
+
+  <h3>Common ogr2ogr recipes</h3>
+  <div class="two-col">
+    <div>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">bash — specific layer from GeoPackage</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="cmt"># List layers in a GeoPackage first</span>
+<span class="fn">ogrinfo</span> <span class="flag">-al</span> <span class="flag">-so</span> data.gpkg
+
+<span class="cmt"># Import specific layer</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> <span class="str">"PostgreSQL"</span> <span class="str">"PG:..."</span> \
+  data.gpkg roads \            <span class="cmt"># layer name after file</span>
+  <span class="flag">-nln</span> roads \
+  <span class="flag">-lco</span> SCHEMA=gis</code></pre>
+      </div>
+    </div>
+    <div>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">bash — filter on import</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="cmt"># Import only features where type = 'highway'</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> <span class="str">"PostgreSQL"</span> <span class="str">"PG:..."</span> \
+  roads.shp \
+  <span class="flag">-where</span> <span class="str">"type = 'highway'"</span> \
+  <span class="flag">-nln</span> highways \
+  <span class="flag">-lco</span> SCHEMA=gis
+
+<span class="cmt"># Clip to a bounding box on import</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> <span class="str">"PostgreSQL"</span> <span class="str">"PG:..."</span> \
+  <span class="flag">-spat</span> <span class="num">36.5 -1.5 37.5 -0.5</span> \   <span class="cmt"># xmin ymin xmax ymax</span>
+  big_dataset.gpkg</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>raster2pgsql — DEM, GeoTIFF, satellite imagery</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — raster import pipeline</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt"># Basic import — tiled 256x256, with overview + constraints</span>
+<span class="fn">raster2pgsql</span> \
+  <span class="flag">-s</span> <span class="num">4326</span> \          <span class="cmt"># Source SRID</span>
+  <span class="flag">-I</span> \              <span class="cmt"># Create spatial index</span>
+  <span class="flag">-C</span> \              <span class="cmt"># Apply raster constraints (metadata)</span>
+  <span class="flag">-M</span> \              <span class="cmt"># Vacuum analyze after import</span>
+  <span class="flag">-F</span> \              <span class="cmt"># Add filename column</span>
+  <span class="flag">-t</span> <span class="num">256x256</span> \      <span class="cmt"># Tile size (important for performance)</span>
+  dem.tif \
+  raster.elevation \
+  | <span class="fn">psql</span> <span class="flag">-h</span> localhost <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb
+
+<span class="cmt"># Large raster: use append mode to load tiles in batches</span>
+<span class="fn">raster2pgsql</span> <span class="flag">-s</span> <span class="num">4326</span> <span class="flag">-I</span> <span class="flag">-C</span> <span class="flag">-t</span> <span class="num">256x256</span> <span class="flag">-a</span> \  <span class="cmt"># -a = append</span>
+  big_raster.tif raster.satellite | <span class="fn">psql</span> <span class="flag">-h</span> localhost <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb
+
+<span class="cmt"># Via make shortcut:</span>
+<span class="fn">make</span> import-raster FILE=dem.tif TABLE=elevation_model</code></pre>
+  </div>
+
+  <div class="tip tip-info">
+    <span class="tip-icon">ℹ</span>
+    <span class="tip-body">Always import to the <code>staging</code> schema first, inspect with <code>make shell-db</code>, then <code>CREATE TABLE gis.my_layer AS SELECT * FROM staging.my_layer;</code> when satisfied. This prevents dirty data from hitting your live services.</span>
+  </div>
+</section>
+
+<!-- ═══════════════════ POSTGIS SPATIAL QUERIES ═══════════════════ -->
+<section id="postgis-spatial" class="s-postgis">
+  <div class="section-eyebrow">// PostGIS — 06</div>
+  <h2>PostGIS <span class="tag">spatial queries</span></h2>
+  <p class="section-desc">The essential spatial SQL you'll use daily. All run in <code class="ic">make shell-db</code> or pgAdmin.</p>
+
+  <h3>Geometry basics</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">sql</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">-- Check what's in your database</span>
+<span class="op">SELECT</span> f_table_schema, f_table_name, f_geometry_column, srid, type
+<span class="op">FROM</span> geometry_columns
+<span class="op">WHERE</span> f_table_schema = <span class="str">'gis'</span>;
+
+<span class="cmt">-- Count features</span>
+<span class="op">SELECT</span> <span class="fn">COUNT</span>(*) <span class="op">FROM</span> gis.my_layer;
+
+<span class="cmt">-- Bounding box of a layer</span>
+<span class="op">SELECT</span> <span class="fn">ST_Extent</span>(geom) <span class="op">FROM</span> gis.my_layer;
+
+<span class="cmt">-- Reproject to Web Mercator (EPSG:3857)</span>
+<span class="op">SELECT</span> id, <span class="fn">ST_Transform</span>(geom, <span class="num">3857</span>) <span class="op">AS</span> geom_web
+<span class="op">FROM</span> gis.my_layer;
+
+<span class="cmt">-- Export a feature as GeoJSON (for debugging)</span>
+<span class="op">SELECT</span> <span class="fn">ST_AsGeoJSON</span>(geom) <span class="op">FROM</span> gis.my_layer <span class="op">WHERE</span> id = <span class="num">1</span>;</code></pre>
+  </div>
+
+  <h3>Spatial relationships</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">sql — common predicates</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">-- Points within a polygon</span>
+<span class="op">SELECT</span> p.*
+<span class="op">FROM</span> gis.points p, gis.regions r
+<span class="op">WHERE</span> r.name = <span class="str">'Nairobi'</span>
+  <span class="op">AND</span> <span class="fn">ST_Within</span>(p.geom, r.geom);
+
+<span class="cmt">-- Buffer + intersect (500m buffer around roads)</span>
+<span class="op">SELECT</span> b.* <span class="op">FROM</span> gis.buildings b
+<span class="op">JOIN</span> gis.roads r <span class="op">ON</span> <span class="fn">ST_Intersects</span>(
+  b.geom,
+  <span class="fn">ST_Buffer</span>(<span class="fn">ST_Transform</span>(r.geom, <span class="num">32737</span>), <span class="num">500</span>)  <span class="cmt">-- buffer in metres (UTM)</span>
+);
+
+<span class="cmt">-- Distance between points (in metres — use UTM projection)</span>
+<span class="op">SELECT</span>
+  a.name,
+  b.name,
+  <span class="fn">ST_Distance</span>(
+    <span class="fn">ST_Transform</span>(a.geom, <span class="num">32737</span>),
+    <span class="fn">ST_Transform</span>(b.geom, <span class="num">32737</span>)
+  ) <span class="op">AS</span> distance_m
+<span class="op">FROM</span> gis.facilities a, gis.facilities b
+<span class="op">WHERE</span> a.id != b.id
+<span class="op">ORDER BY</span> distance_m
+<span class="op">LIMIT</span> <span class="num">10</span>;
+
+<span class="cmt">-- Nearest neighbor (KNN — very fast with GIST index)</span>
+<span class="op">SELECT</span> id, name, geom <span class="op"><>></span> <span class="str">'SRID=4326;POINT(36.8 -1.3)'</span>::geometry <span class="op">AS</span> dist
+<span class="op">FROM</span> gis.facilities
+<span class="op">ORDER BY</span> geom <span class="op"><></span> <span class="str">'SRID=4326;POINT(36.8 -1.3)'</span>::geometry
+<span class="op">LIMIT</span> <span class="num">5</span>;</code></pre>
+  </div>
+
+  <h3>Spatial aggregation & analysis</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">sql</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">-- Union all polygons by category</span>
+<span class="op">SELECT</span> category, <span class="fn">ST_Union</span>(geom) <span class="op">AS</span> geom
+<span class="op">FROM</span> gis.parcels
+<span class="op">GROUP BY</span> category;
+
+<span class="cmt">-- Clip layer to a region boundary</span>
+<span class="op">SELECT</span> <span class="fn">ST_Intersection</span>(a.geom, b.geom) <span class="op">AS</span> geom
+<span class="op">FROM</span> gis.landuse a, gis.admin_boundary b
+<span class="op">WHERE</span> b.name = <span class="str">'Nairobi County'</span>
+  <span class="op">AND</span> <span class="fn">ST_Intersects</span>(a.geom, b.geom);
+
+<span class="cmt">-- Create a materialized view (auto-exposed by Martin!)</span>
+<span class="op">CREATE MATERIALIZED VIEW</span> gis.roads_simplified <span class="op">AS</span>
+<span class="op">SELECT</span>
+  id, name, road_type,
+  <span class="fn">ST_SimplifyPreserveTopology</span>(geom, <span class="num">0.0001</span>) <span class="op">AS</span> geom
+<span class="op">FROM</span> gis.roads
+<span class="op">WHERE</span> road_type <span class="op">IN</span> (<span class="str">'primary'</span>, <span class="str">'secondary'</span>);
+
+<span class="cmt">-- Refresh when source data changes:</span>
+<span class="op">REFRESH MATERIALIZED VIEW</span> gis.roads_simplified;</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ POSTGIS RASTER ═══════════════════ -->
+<section id="postgis-raster" class="s-postgis">
+  <div class="section-eyebrow">// PostGIS — 07</div>
+  <h2>PostGIS <span class="tag">raster operations</span></h2>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">sql — raster queries</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">-- Inspect raster metadata</span>
+<span class="op">SELECT</span>
+  rid,
+  <span class="fn">ST_BandNoDataValue</span>(rast) <span class="op">AS</span> nodata,
+  <span class="fn">ST_MetaData</span>(rast).*,
+  <span class="fn">ST_BandMetaData</span>(rast, <span class="num">1</span>).*
+<span class="op">FROM</span> raster.elevation
+<span class="op">LIMIT</span> <span class="num">1</span>;
+
+<span class="cmt">-- Extract pixel value at a point (elevation at coordinate)</span>
+<span class="op">SELECT</span> <span class="fn">ST_Value</span>(
+  rast,
+  <span class="fn">ST_SetSRID</span>(<span class="fn">ST_MakePoint</span>(<span class="num">36.82</span>, <span class="num">-1.28</span>), <span class="num">4326</span>)
+) <span class="op">AS</span> elevation_m
+<span class="op">FROM</span> raster.elevation
+<span class="op">WHERE</span> <span class="fn">ST_Intersects</span>(
+  rast,
+  <span class="fn">ST_SetSRID</span>(<span class="fn">ST_MakePoint</span>(<span class="num">36.82</span>, <span class="num">-1.28</span>), <span class="num">4326</span>)
+);
+
+<span class="cmt">-- Zonal statistics (mean elevation per polygon)</span>
+<span class="op">SELECT</span>
+  p.name,
+  (<span class="fn">ST_SummaryStatsAgg</span>(r.rast, <span class="num">1</span>, <span class="kw">true</span>)).mean <span class="op">AS</span> mean_elevation,
+  (<span class="fn">ST_SummaryStatsAgg</span>(r.rast, <span class="num">1</span>, <span class="kw">true</span>)).min  <span class="op">AS</span> min_elevation,
+  (<span class="fn">ST_SummaryStatsAgg</span>(r.rast, <span class="num">1</span>, <span class="kw">true</span>)).max  <span class="op">AS</span> max_elevation
+<span class="op">FROM</span> gis.admin_regions p
+<span class="op">JOIN</span> raster.elevation r
+  <span class="op">ON</span> <span class="fn">ST_Intersects</span>(r.rast, p.geom)
+<span class="op">GROUP BY</span> p.name;
+
+<span class="cmt">-- Export a raster tile as PNG (useful for debugging)</span>
+<span class="op">SELECT</span> <span class="fn">encode</span>(<span class="fn">ST_AsPNG</span>(
+  <span class="fn">ST_Union</span>(<span class="fn">ST_Clip</span>(rast, <span class="fn">ST_MakeEnvelope</span>(<span class="num">36.7</span>,<span class="num">-1.4</span>,<span class="num">37.0</span>,<span class="num">-1.1</span>,<span class="num">4326</span>)))
+), <span class="str">'base64'</span>)
+<span class="op">FROM</span> raster.elevation;</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ POSTGIS INDEXES ═══════════════════ -->
+<section id="postgis-index" class="s-postgis">
+  <div class="section-eyebrow">// PostGIS — 08</div>
+  <h2>PostGIS <span class="tag">indexes & tuning</span></h2>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">sql — essential indexes</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">-- Create GIST spatial index (always do this after import)</span>
+<span class="op">CREATE INDEX</span> idx_my_layer_geom
+  <span class="op">ON</span> gis.my_layer <span class="op">USING GIST</span> (geom);
+
+<span class="cmt">-- Helper function (defined in init script):</span>
+<span class="op">SELECT</span> <span class="fn">create_spatial_index</span>(<span class="str">'my_layer'</span>, <span class="str">'geom'</span>);
+
+<span class="cmt">-- Compound index: spatial + attribute (e.g. spatial filter + type filter)</span>
+<span class="op">CREATE INDEX</span> idx_roads_type_geom
+  <span class="op">ON</span> gis.roads <span class="op">USING GIST</span> (geom, road_type)
+  <span class="op">WHERE</span> road_type = <span class="str">'primary'</span>;
+
+<span class="cmt">-- Check index usage</span>
+<span class="op">EXPLAIN ANALYZE</span>
+<span class="op">SELECT</span> * <span class="op">FROM</span> gis.my_layer
+<span class="op">WHERE</span> <span class="fn">ST_Within</span>(geom, <span class="fn">ST_MakeEnvelope</span>(<span class="num">36.7</span>,<span class="num">-1.4</span>,<span class="num">37.0</span>,<span class="num">-1.1</span>,<span class="num">4326</span>));
+
+<span class="cmt">-- CLUSTER table by spatial index (puts nearby features together on disk)</span>
+<span class="op">CLUSTER</span> gis.my_layer <span class="op">USING</span> idx_my_layer_geom;
+
+<span class="cmt">-- Update statistics after bulk load</span>
+<span class="op">ANALYZE</span> gis.my_layer;
+<span class="op">VACUUM ANALYZE</span> gis.my_layer;  <span class="cmt">-- full maintenance</span></code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ GEOSERVER SETUP ═══════════════════ -->
+<section id="gs-setup" class="s-geoserver">
+  <div class="section-eyebrow">// GeoServer — 09</div>
+  <h2>GeoServer <span class="tag">first setup</span></h2>
+  <p class="section-desc">Configure GeoServer for the first time via its web UI.</p>
+
+  <ol class="steps">
+    <li><span class="step-text">Open <strong>http://localhost:8080/geoserver/web/</strong> — login with your <code class="ic">GEOSERVER_ADMIN_USER</code> / <code class="ic">GEOSERVER_ADMIN_PASSWORD</code> from .env</span></li>
+    <li><span class="step-text"><strong>Security → Change password</strong> if you haven't already. Critical for anything non-local.</span></li>
+    <li><span class="step-text"><strong>Server → Contact Information</strong> — fill in your organisation name. This appears in GetCapabilities responses.</span></li>
+    <li><span class="step-text"><strong>Data → Workspaces → Add new workspace</strong> — create a workspace (e.g. <code class="ic">gis</code>). This becomes the URL namespace for your services.</span></li>
+    <li><span class="step-text"><strong>Data → Stores → Add new store → PostGIS</strong> — connect to your database (host: <code class="ic">postgis</code>, db: <code class="ic">gisdb</code>, user: <code class="ic">gisuser</code>)</span></li>
+    <li><span class="step-text"><strong>Data → Layers → Add new layer</strong> — pick your store, then publish any layer from the <code class="ic">gis</code> schema</span></li>
+  </ol>
+
+  <div class="tip tip-warn">
+    <span class="tip-icon">⚠</span>
+    <span class="tip-body">Use <code>postgis</code> (the container name) as the host, NOT <code>localhost</code>. GeoServer runs inside Docker and resolves container names via the internal <code>gis_net</code> network.</span>
+  </div>
+</section>
+
+<!-- ═══════════════════ GEOSERVER WORKSPACE ═══════════════════ -->
+<section id="gs-workspace" class="s-geoserver">
+  <div class="section-eyebrow">// GeoServer — 10</div>
+  <h2>GeoServer <span class="tag">workspaces & stores</span></h2>
+
+  <div class="two-col">
+    <div>
+      <h3>PostGIS vector store</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">GeoServer UI → Data → Stores</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code>Store type:  PostGIS
+Workspace:   gis
+Name:        gisdb_postgis
+
+host:        postgis
+port:        5432
+database:    gisdb
+schema:      gis
+user:        gisuser
+password:    your_password
+
+✅ validate connections
+✅ Connection pool settings:
+   Max connections: 10
+   Min connections: 1</code></pre>
+      </div>
+    </div>
+    <div>
+      <h3>GeoTIFF raster store</h3>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">GeoServer UI → Data → Stores</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code>Store type:  GeoTIFF
+Workspace:   gis
+Name:        dem_store
+
+URL: file:data/dem/elevation.tif
+<span class="cmt">
+# GeoServer data_dir is mounted as a
+# Docker volume. Copy rasters there:
+docker cp elevation.tif \
+  gis_geoserver:/opt/geoserver/data_dir/dem/</span></code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>PostGIS Raster store</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">GeoServer UI → Data → Stores → PostGIS Raster</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code>Store type:  PostGIS Raster
+Workspace:   gis
+Name:        elevation_raster
+
+Connection:  (same as vector store)
+Table:       raster.elevation      <span class="cmt"># schema.table from raster2pgsql import</span></code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ GEOSERVER WMS ═══════════════════ -->
+<section id="gs-wms" class="s-geoserver">
+  <div class="section-eyebrow">// GeoServer — 11</div>
+  <h2>GeoServer <span class="tag">WMS</span></h2>
+
+  <h3>GetCapabilities — discover available layers</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">url</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code>http://localhost:8080/geoserver/gis/wms?
+  SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities</code></pre>
+  </div>
+
+  <h3>GetMap — render a map image</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">url</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code>http://localhost:8080/geoserver/gis/wms?
+  SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap
+  &LAYERS=gis:my_layer
+  &BBOX=-180,-90,180,90        <span class="cmt"># minx,miny,maxx,maxy</span>
+  &WIDTH=800&HEIGHT=600
+  &CRS=EPSG:4326
+  &FORMAT=image/png
+  &TRANSPARENT=true
+  &STYLES=                     <span class="cmt"># blank = default style</span></code></pre>
+  </div>
+
+  <h3>GetFeatureInfo — click query</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">url</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code>http://localhost:8080/geoserver/gis/wms?
+  SERVICE=WMS&VERSION=1.3.0&REQUEST=GetFeatureInfo
+  &LAYERS=gis:my_layer
+  &QUERY_LAYERS=gis:my_layer
+  &INFO_FORMAT=application/json
+  &FEATURE_COUNT=5
+  &I=400&J=300                 <span class="cmt"># pixel coordinates of click</span>
+  &WIDTH=800&HEIGHT=600
+  &CRS=EPSG:4326
+  &BBOX=-180,-90,180,90</code></pre>
+  </div>
+
+  <h3>Use WMS in Leaflet</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">javascript</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="kw">const</span> wmsLayer = L.<span class="fn">tileLayer</span>.<span class="fn">wms</span>(
+  <span class="str">'http://localhost/geoserver/gis/wms'</span>,
+  {
+    layers: <span class="str">'gis:my_layer'</span>,
+    format: <span class="str">'image/png'</span>,
+    transparent: <span class="kw">true</span>,
+    version: <span class="str">'1.3.0'</span>,
+    attribution: <span class="str">'GeoServer'</span>
+  }
+).<span class="fn">addTo</span>(map);</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ GEOSERVER WFS ═══════════════════ -->
+<section id="gs-wfs" class="s-geoserver">
+  <div class="section-eyebrow">// GeoServer — 12</div>
+  <h2>GeoServer <span class="tag">WFS</span></h2>
+
+  <div class="two-col">
+    <div>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">url — GetFeature (GeoJSON)</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code>http://localhost:8080/geoserver/gis/wfs?
+  SERVICE=WFS&VERSION=2.0.0
+  &REQUEST=GetFeature
+  &TYPENAMES=gis:my_layer
+  &outputFormat=application/json
+  &count=100
+  &startIndex=0</code></pre>
+      </div>
+    </div>
+    <div>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">url — BBox filter</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code>http://localhost:8080/geoserver/gis/wfs?
+  SERVICE=WFS&VERSION=2.0.0
+  &REQUEST=GetFeature
+  &TYPENAMES=gis:my_layer
+  &outputFormat=application/json
+  &BBOX=36.5,-1.5,37.5,-0.5,EPSG:4326</code></pre>
+      </div>
+    </div>
+  </div>
+
+  <h3>CQL filter (attribute query)</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">url — CQL_FILTER</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code>http://localhost:8080/geoserver/gis/wfs?
+  SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature
+  &TYPENAMES=gis:roads
+  &outputFormat=application/json
+  &CQL_FILTER=road_type='primary' AND lanes > 2
+
+<span class="cmt"># Spatial CQL filter</span>
+  &CQL_FILTER=INTERSECTS(geom, POLYGON((36.7 -1.4, 37.0 -1.4, 37.0 -1.1, 36.7 -1.1, 36.7 -1.4)))</code></pre>
+  </div>
+
+  <h3>Download as Shapefile / GeoPackage</h3>
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — via curl</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt"># Download as GeoPackage</span>
+<span class="fn">curl</span> <span class="str">"http://localhost:8080/geoserver/gis/wfs?SERVICE=WFS&VERSION=2.0.0&REQUEST=GetFeature&TYPENAMES=gis:my_layer&outputFormat=GPKG"</span> \
+  <span class="flag">-o</span> my_layer.gpkg
+
+<span class="cmt"># Download as Shapefile (zip)</span>
+<span class="fn">curl</span> <span class="str">"http://localhost:8080/geoserver/gis/wfs?...&outputFormat=shape-zip"</span> \
+  <span class="flag">-o</span> my_layer.zip</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ GEOSERVER WMTS ═══════════════════ -->
+<section id="gs-wmts" class="s-geoserver">
+  <div class="section-eyebrow">// GeoServer — 13</div>
+  <h2>GeoServer <span class="tag">WMTS & tile caching</span></h2>
+  <p class="section-desc">GeoWebCache is bundled with GeoServer. Use it to pre-seed tile caches for high-traffic layers.</p>
+
+  <ol class="steps">
+    <li><span class="step-text">Publish your layer normally via WMS</span></li>
+    <li><span class="step-text"><strong>Tile Layers → your_layer → Seed/Truncate</strong></span></li>
+    <li><span class="step-text">Set zoom levels (e.g. 0–14), thread count (4), gridset (EPSG:4326 or WebMercatorQuad)</span></li>
+    <li><span class="step-text">Click <strong>Submit</strong> — seeding runs in background. Check <strong>Tile Layers → Disk quota</strong> for progress</span></li>
+  </ol>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">url — WMTS tile (after seeding)</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code>http://localhost:8080/geoserver/gwc/service/wmts?
+  SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile
+  &LAYER=gis:my_layer
+  &STYLE=&FORMAT=image/png
+  &TILEMATRIXSET=EPSG:4326
+  &TILEMATRIX=EPSG:4326:10
+  &TILEROW=120&TILECOL=340
+
+<span class="cmt"># Or use XYZ/TMS format (for Leaflet/MapLibre):</span>
+http://localhost:8080/geoserver/gwc/service/tms/1.0.0/gis:my_layer@EPSG:900913@png/{z}/{x}/{y}.png</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ GEOSERVER SLD ═══════════════════ -->
+<section id="gs-sld" class="s-geoserver">
+  <div class="section-eyebrow">// GeoServer — 14</div>
+  <h2>GeoServer <span class="tag">SLD styling</span></h2>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">xml — polygon choropleth SLD</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="op">&lt;?xml version="1.0" encoding="UTF-8"?&gt;</span>
+<span class="op">&lt;StyledLayerDescriptor</span> version=<span class="str">"1.0.0"</span>
+  xsi:schemaLocation=<span class="str">"http://www.opengis.net/sld StyledLayerDescriptor.xsd"</span><span class="op">&gt;</span>
+  <span class="op">&lt;NamedLayer&gt;</span>
+    <span class="op">&lt;Name&gt;</span>my_layer<span class="op">&lt;/Name&gt;</span>
+    <span class="op">&lt;UserStyle&gt;</span>
+      <span class="op">&lt;Title&gt;</span>Population Density<span class="op">&lt;/Title&gt;</span>
+      <span class="op">&lt;FeatureTypeStyle&gt;</span>
+        <span class="cmt">&lt;!-- Rule 1: Low density --&gt;</span>
+        <span class="op">&lt;Rule&gt;</span>
+          <span class="op">&lt;Name&gt;</span>low<span class="op">&lt;/Name&gt;</span>
+          <span class="op">&lt;ogc:Filter&gt;&lt;ogc:PropertyIsLessThan&gt;</span>
+            <span class="op">&lt;ogc:PropertyName&gt;</span>density<span class="op">&lt;/ogc:PropertyName&gt;</span>
+            <span class="op">&lt;ogc:Literal&gt;</span>100<span class="op">&lt;/ogc:Literal&gt;</span>
+          <span class="op">&lt;/ogc:PropertyIsLessThan&gt;&lt;/ogc:Filter&gt;</span>
+          <span class="op">&lt;PolygonSymbolizer&gt;</span>
+            <span class="op">&lt;Fill&gt;&lt;CssParameter name="fill"&gt;</span>#ffffcc<span class="op">&lt;/CssParameter&gt;&lt;/Fill&gt;</span>
+            <span class="op">&lt;Stroke&gt;&lt;CssParameter name="stroke"&gt;</span>#999<span class="op">&lt;/CssParameter&gt;</span>
+              <span class="op">&lt;CssParameter name="stroke-width"&gt;</span>0.5<span class="op">&lt;/CssParameter&gt;&lt;/Stroke&gt;</span>
+          <span class="op">&lt;/PolygonSymbolizer&gt;</span>
+        <span class="op">&lt;/Rule&gt;</span>
+        <span class="cmt">&lt;!-- Rule 2: High density --&gt;</span>
+        <span class="op">&lt;Rule&gt;</span>
+          <span class="op">&lt;Name&gt;</span>high<span class="op">&lt;/Name&gt;</span>
+          <span class="op">&lt;ogc:Filter&gt;&lt;ogc:PropertyIsGreaterThan&gt;</span>
+            <span class="op">&lt;ogc:PropertyName&gt;</span>density<span class="op">&lt;/ogc:PropertyName&gt;</span>
+            <span class="op">&lt;ogc:Literal&gt;</span>1000<span class="op">&lt;/ogc:Literal&gt;</span>
+          <span class="op">&lt;/ogc:PropertyIsGreaterThan&gt;&lt;/ogc:Filter&gt;</span>
+          <span class="op">&lt;PolygonSymbolizer&gt;</span>
+            <span class="op">&lt;Fill&gt;&lt;CssParameter name="fill"&gt;</span>#800026<span class="op">&lt;/CssParameter&gt;&lt;/Fill&gt;</span>
+          <span class="op">&lt;/PolygonSymbolizer&gt;</span>
+        <span class="op">&lt;/Rule&gt;</span>
+      <span class="op">&lt;/FeatureTypeStyle&gt;</span>
+    <span class="op">&lt;/UserStyle&gt;</span>
+  <span class="op">&lt;/NamedLayer&gt;</span>
+<span class="op">&lt;/StyledLayerDescriptor&gt;</span></code></pre>
+  </div>
+
+  <div class="tip tip-info">
+    <span class="tip-icon">ℹ</span>
+    <span class="tip-body">Paste SLD into <strong>GeoServer UI → Styles → Add a new style</strong>. Validate, then assign to a layer under <strong>Layers → Publishing → Default Style</strong>. You can also use YSLD (YAML-based) which is far less verbose.</span>
+  </div>
+</section>
+
+<!-- ═══════════════════ MARTIN ═══════════════════ -->
+<section id="martin-tiles" class="s-martin">
+  <div class="section-eyebrow">// Martin — 15</div>
+  <h2>Martin <span class="tag">vector tiles</span></h2>
+  <p class="section-desc">Martin auto-exposes every PostGIS table with a geometry column as an MVT tile source. No configuration needed for basic use.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — explore available layers</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt"># List ALL available tile sources</span>
+<span class="fn">curl</span> http://localhost:3000/catalog | <span class="fn">jq</span> .
+
+<span class="cmt"># TileJSON for a specific layer (metadata)</span>
+<span class="fn">curl</span> http://localhost:3000/my_layer | <span class="fn">jq</span> .
+
+<span class="cmt"># Fetch a specific tile</span>
+<span class="fn">curl</span> http://localhost:3000/my_layer/10/512/480 <span class="flag">-o</span> tile.mvt
+
+<span class="cmt"># Via nginx proxy:</span>
+<span class="fn">curl</span> http://localhost/tiles/my_layer/10/512/480</code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ MARTIN MAPLIBRE ═══════════════════ -->
+<section id="martin-maplibre" class="s-martin">
+  <div class="section-eyebrow">// Martin — 16</div>
+  <h2>Martin <span class="tag">MapLibre GL integration</span></h2>
+  <p class="section-desc">The most powerful combination — Martin MVT + MapLibre GL for fully interactive client-side rendering.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">html + javascript — complete example</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="op">&lt;!DOCTYPE html&gt;</span>
+<span class="op">&lt;html&gt;&lt;head&gt;</span>
+  <span class="op">&lt;link</span> rel=<span class="str">"stylesheet"</span> href=<span class="str">"https://unpkg.com/maplibre-gl/dist/maplibre-gl.css"</span><span class="op">/&gt;</span>
+  <span class="op">&lt;script</span> src=<span class="str">"https://unpkg.com/maplibre-gl/dist/maplibre-gl.js"</span><span class="op">&gt;&lt;/script&gt;</span>
+<span class="op">&lt;/head&gt;&lt;body&gt;</span>
+<span class="op">&lt;div</span> id=<span class="str">"map"</span> style=<span class="str">"width:100%;height:100vh"</span><span class="op">&gt;&lt;/div&gt;</span>
+<span class="op">&lt;script&gt;</span>
+<span class="kw">const</span> map = <span class="kw">new</span> maplibregl.<span class="fn">Map</span>({
+  container: <span class="str">'map'</span>,
+  style: <span class="str">'https://demotiles.maplibre.org/style.json'</span>,
+  center: [<span class="num">36.82</span>, <span class="num">-1.28</span>], zoom: <span class="num">10</span>
+});
+
+map.<span class="fn">on</span>(<span class="str">'load'</span>, () => {
+
+  <span class="cmt">// 1. Add Martin as a vector tile source</span>
+  map.<span class="fn">addSource</span>(<span class="str">'roads'</span>, {
+    type: <span class="str">'vector'</span>,
+    url: <span class="str">'http://localhost/tiles/roads'</span>  <span class="cmt">// TileJSON endpoint</span>
+  });
+
+  <span class="cmt">// 2. Style it</span>
+  map.<span class="fn">addLayer</span>({
+    id: <span class="str">'roads-line'</span>,
+    type: <span class="str">'line'</span>,
+    source: <span class="str">'roads'</span>,
+    <span class="str">'source-layer'</span>: <span class="str">'roads'</span>,  <span class="cmt">// Must match table name</span>
+    paint: {
+      <span class="str">'line-color'</span>: [<span class="str">'match'</span>, [<span class="str">'get'</span>, <span class="str">'road_type'</span>],
+        <span class="str">'primary'</span>, <span class="str">'#ff6b35'</span>,
+        <span class="str">'secondary'</span>, <span class="str">'#f59e0b'</span>,
+        <span class="str">'#888'</span>  <span class="cmt">// default</span>
+      ],
+      <span class="str">'line-width'</span>: [<span class="str">'interpolate'</span>, [<span class="str">'linear'</span>], [<span class="str">'zoom'</span>],
+        <span class="num">8</span>, <span class="num">1</span>,   <span class="cmt">// zoom 8 → 1px</span>
+        <span class="num">14</span>, <span class="num">4</span>   <span class="cmt">// zoom 14 → 4px</span>
+      ]
+    }
+  });
+
+  <span class="cmt">// 3. Click popup</span>
+  map.<span class="fn">on</span>(<span class="str">'click'</span>, <span class="str">'roads-line'</span>, (e) => {
+    <span class="kw">const</span> props = e.features[<span class="num">0</span>].properties;
+    <span class="kw">new</span> maplibregl.<span class="fn">Popup</span>()
+      .<span class="fn">setLngLat</span>(e.lngLat)
+      .<span class="fn">setHTML</span>(<span class="str">`&lt;b&gt;${props.name}&lt;/b&gt;&lt;br&gt;Type: ${props.road_type}`</span>)
+      .<span class="fn">addTo</span>(map);
+  });
+});
+<span class="op">&lt;/script&gt;&lt;/body&gt;&lt;/html&gt;</span></code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ MARTIN SQL FUNCTIONS ═══════════════════ -->
+<section id="martin-functions" class="s-martin">
+  <div class="section-eyebrow">// Martin — 17</div>
+  <h2>Martin <span class="tag">SQL tile functions</span></h2>
+  <p class="section-desc">The most powerful Martin feature — write a PostgreSQL function that returns MVT tiles with custom logic, filtering, or joins.</p>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">sql — dynamic tile function</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">-- Create a tile function that accepts custom parameters</span>
+<span class="op">CREATE OR REPLACE FUNCTION</span> gis.<span class="fn">roads_by_type</span>(
+  z integer, x integer, y integer,
+  query_params json   <span class="cmt">-- extra params from URL</span>
+) <span class="op">RETURNS</span> bytea <span class="op">AS</span> $$
+<span class="op">DECLARE</span>
+  mvt bytea;
+  road_filter text := <span class="fn">COALESCE</span>(query_params->><span class="str">'type'</span>, <span class="str">'primary'</span>);
+<span class="op">BEGIN</span>
+  <span class="op">SELECT INTO</span> mvt <span class="fn">ST_AsMVT</span>(tile, <span class="str">'roads_by_type'</span>, <span class="num">4096</span>, <span class="str">'geom'</span>)
+  <span class="op">FROM</span> (
+    <span class="op">SELECT</span>
+      id, name, road_type, lanes,
+      <span class="fn">ST_AsMVTGeom</span>(
+        <span class="fn">ST_Transform</span>(geom, <span class="num">3857</span>),
+        <span class="fn">ST_TileEnvelope</span>(z, x, y),
+        <span class="num">4096</span>, <span class="num">64</span>, <span class="kw">true</span>
+      ) <span class="op">AS</span> geom
+    <span class="op">FROM</span> gis.roads
+    <span class="op">WHERE</span>
+      <span class="fn">ST_Intersects</span>(
+        <span class="fn">ST_Transform</span>(geom, <span class="num">3857</span>),
+        <span class="fn">ST_TileEnvelope</span>(z, x, y, margin => (<span class="num">64.0</span>/<span class="num">4096</span>))
+      )
+      <span class="op">AND</span> road_type = road_filter    <span class="cmt">-- dynamic filter from URL param</span>
+  ) tile;
+
+  <span class="op">RETURN</span> mvt;
+<span class="op">END</span>;
+$$ <span class="op">LANGUAGE</span> plpgsql <span class="op">STABLE PARALLEL SAFE</span>;
+
+<span class="cmt">-- Call it from the browser:
+-- http://localhost:3000/gis.roads_by_type/10/512/480?type=secondary</span></code></pre>
+  </div>
+
+  <div class="tip tip-ok">
+    <span class="tip-icon">✅</span>
+    <span class="tip-body">SQL tile functions are automatically discovered by Martin if they match the <code>(z int, x int, y int)</code> signature. Add <code>PARALLEL SAFE</code> to allow PostGIS to parallelize tile generation across connections.</span>
+  </div>
+</section>
+
+<!-- ═══════════════════ FULL PIPELINE ═══════════════════ -->
+<section id="workflow-fullstack" class="s-workflow">
+  <div class="section-eyebrow">// Workflows — 18</div>
+  <h2>Full Pipeline <span class="tag">end to end</span></h2>
+  <p class="section-desc">Complete workflow from raw data file to live map in browser.</p>
+
+  <div class="flow">
+    <div class="flow-node badge badge-postgis">Raw file (.gpkg/.tif)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node badge badge-postgis">ogr2ogr → PostGIS</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node badge badge-martin">Martin auto-discovers</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node badge badge-nginx">MVT tiles via Nginx</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-node badge badge-geoserver">MapLibre GL browser</div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — complete example: Nairobi roads</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt"># Step 1: Start the stack</span>
+<span class="fn">make</span> up && <span class="fn">make</span> health
+
+<span class="cmt"># Step 2: Download sample data (OpenStreetMap via ohsome/overpass)</span>
+<span class="fn">curl</span> <span class="str">"https://overpass-api.de/api/interpreter?data=[out:json];way[highway](around:20000,-1.28,36.82);out geom;"</span> \
+  <span class="flag">-o</span> nairobi_roads.json
+
+<span class="cmt"># Step 3: Import to PostGIS (staging first)</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> <span class="str">"PostgreSQL"</span> \
+  <span class="str">"PG:host=localhost port=5432 dbname=gisdb user=gisuser password=YOUR_PW"</span> \
+  nairobi_roads.json \
+  <span class="flag">-nln</span> roads_raw \
+  <span class="flag">-nlt</span> PROMOTE_TO_MULTI \
+  <span class="flag">-lco</span> SCHEMA=staging \
+  <span class="flag">-lco</span> GEOMETRY_NAME=geom \
+  <span class="flag">-t_srs</span> EPSG:4326 \
+  <span class="flag">--config</span> PG_USE_COPY YES \
+  <span class="flag">-overwrite</span>
+
+<span class="cmt"># Step 4: Inspect and promote to gis schema</span>
+<span class="fn">make</span> shell-db
+<span class="cmt">  -- In psql:</span>
+<span class="op">  SELECT</span> <span class="fn">COUNT</span>(*), road_type <span class="op">FROM</span> staging.roads_raw <span class="op">GROUP BY</span> road_type;
+<span class="op">  CREATE TABLE</span> gis.roads <span class="op">AS SELECT</span> * <span class="op">FROM</span> staging.roads_raw;
+<span class="op">  SELECT</span> <span class="fn">create_spatial_index</span>(<span class="str">'roads'</span>, <span class="str">'geom'</span>);
+<span class="op">  \q</span>
+
+<span class="cmt"># Step 5: Martin auto-discovers it — verify:</span>
+<span class="fn">curl</span> http://localhost:3000/catalog | <span class="fn">jq</span> <span class="str">'.tiles | keys'</span>
+<span class="cmt"># → ["gis.roads", ...]</span>
+
+<span class="cmt"># Step 6: Test a tile</span>
+<span class="fn">curl</span> <span class="flag">-o</span> /dev/null <span class="flag">-w</span> <span class="str">"%{http_code}\n"</span> \
+  http://localhost:3000/gis.roads/10/596/508
+<span class="cmt"># → 200</span>
+
+<span class="cmt"># Step 7: GeoServer — add PostGIS store → publish gis:roads layer</span>
+<span class="cmt"># Open http://localhost:8080/geoserver/web/ and follow setup steps</span></code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ QGIS ═══════════════════ -->
+<section id="workflow-qgis" class="s-workflow">
+  <div class="section-eyebrow">// Workflows — 19</div>
+  <h2>QGIS Integration</h2>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-icon">🗄️</div>
+      <div class="card-title">PostGIS direct</div>
+      <div class="card-body">Layer → Add PostGIS Layer. Host: localhost, Port: 5432, DB: gisdb, User: gisuser. Browse gis schema directly.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">🗺️</div>
+      <div class="card-title">WMS layer</div>
+      <div class="card-body">Layer → Add WMS/WMTS Layer. URL: <code style="color:var(--accent4)">http://localhost/geoserver/gis/wms</code>. Select layer and CRS. Gets rendered image tiles.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">📥</div>
+      <div class="card-title">WFS layer</div>
+      <div class="card-body">Layer → Add WFS Layer. URL: <code style="color:var(--accent4)">http://localhost/geoserver/gis/wfs</code>. Gets actual editable vector features you can modify and push back.</div>
+    </div>
+    <div class="card">
+      <div class="card-icon">⬆️</div>
+      <div class="card-title">QGIS → PostGIS</div>
+      <div class="card-body">Database → DB Manager → Import Layer. Or use Processing → Import to PostgreSQL. Data lands in PostGIS instantly, GeoServer and Martin pick it up.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ OGR CHEATSHEET ═══════════════════ -->
+<section id="workflow-ogr" class="s-workflow">
+  <div class="section-eyebrow">// Workflows — 20</div>
+  <h2>ogr2ogr Cheatsheet</h2>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — reference</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">## INSPECT</span>
+<span class="fn">ogrinfo</span> <span class="flag">-al</span> <span class="flag">-so</span> data.gpkg               <span class="cmt"># summary of all layers</span>
+<span class="fn">ogrinfo</span> data.gpkg layer_name            <span class="cmt"># detailed layer info</span>
+
+<span class="cmt">## FORMAT CONVERSIONS</span>
+<span class="cmt"># Shapefile → GeoPackage</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> GPKG output.gpkg input.shp
+
+<span class="cmt"># GeoJSON → PostGIS</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> PostgreSQL <span class="str">"PG:..."</span> data.geojson <span class="flag">-nln</span> table_name <span class="flag">-lco</span> SCHEMA=gis
+
+<span class="cmt"># PostGIS → GeoPackage (export)</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> GPKG output.gpkg <span class="str">"PG:host=localhost dbname=gisdb user=gisuser password=pw"</span> \
+  <span class="flag">-sql</span> <span class="str">"SELECT * FROM gis.my_layer WHERE category = 'urban'"</span>
+
+<span class="cmt"># PostGIS → GeoJSON</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> GeoJSON output.geojson <span class="str">"PG:..."</span> <span class="flag">-sql</span> <span class="str">"SELECT * FROM gis.my_layer"</span>
+
+<span class="cmt">## PROJECTIONS</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-t_srs</span> EPSG:32737 reprojected.gpkg input.gpkg   <span class="cmt"># to UTM Zone 37S</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-t_srs</span> EPSG:4326 wgs84.gpkg input.gpkg           <span class="cmt"># to WGS84</span>
+
+<span class="cmt">## CLIP / SPATIAL FILTER</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-clipsrc</span> <span class="num">36.5 -1.5 37.5 -0.5</span> clipped.gpkg input.gpkg   <span class="cmt"># bbox</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-clipsrc</span> boundary.shp clipped.gpkg input.gpkg             <span class="cmt"># by polygon</span>
+
+<span class="cmt">## LARGE FILES — performance flags</span>
+<span class="fn">ogr2ogr</span> <span class="flag">-f</span> PostgreSQL <span class="str">"PG:..."</span> huge.gpkg \
+  <span class="flag">--config</span> PG_USE_COPY YES \     <span class="cmt"># COPY instead of INSERT (10x faster)</span>
+  <span class="flag">--config</span> OGR_TRUNCATE YES \    <span class="cmt"># Truncate before insert</span>
+  <span class="flag">-gt</span> <span class="num">65536</span>                       <span class="cmt"># Transaction batch size</span></code></pre>
+  </div>
+</section>
+
+<!-- ═══════════════════ BACKUP ═══════════════════ -->
+<section id="workflow-backup" class="s-workflow">
+  <div class="section-eyebrow">// Workflows — 21</div>
+  <h2>Backup & Restore</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">bash — backup</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="cmt"># Full database backup (custom format)</span>
+<span class="fn">make</span> backup
+<span class="cmt"># Creates: ./backups/gisdb_YYYYMMDD_HHMMSS.dump</span>
+
+<span class="cmt"># Schema-only backup</span>
+<span class="fn">docker</span> exec gis_postgis \
+  pg_dump <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb \
+  <span class="flag">--schema-only</span> <span class="flag">-Fc</span> \
+  > backups/schema_only.dump
+
+<span class="cmt"># Single table backup</span>
+<span class="fn">docker</span> exec gis_postgis \
+  pg_dump <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb \
+  <span class="flag">-t</span> gis.my_layer <span class="flag">-Fc</span> \
+  > backups/my_layer.dump</code></pre>
+      </div>
+    </div>
+    <div>
+      <div class="code-block">
+        <div class="code-header"><span class="code-label">bash — restore</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+        <pre><code><span class="cmt"># Full restore</span>
+<span class="fn">make</span> restore FILE=backups/gisdb_20241201.dump
+
+<span class="cmt"># Restore single table</span>
+<span class="fn">docker</span> exec <span class="flag">-i</span> gis_postgis \
+  pg_restore \
+  <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb \
+  <span class="flag">-t</span> my_layer \
+  <span class="flag">--clean</span> \
+  < backups/my_layer.dump
+
+<span class="cmt"># Cron job: daily backup at 2am</span>
+<span class="str">0 2 * * * cd /path/to/gis-stack && make backup</span></code></pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════ DEBUGGING ═══════════════════ -->
+<section id="workflow-debug" class="s-workflow">
+  <div class="section-eyebrow">// Workflows — 22</div>
+  <h2>Debugging Common Issues</h2>
+
+  <div class="code-block">
+    <div class="code-header"><span class="code-label">bash — diagnostic commands</span><button class="copy-btn" onclick="copyCode(this)">copy</button></div>
+    <pre><code><span class="cmt">## Container won't start?</span>
+<span class="fn">docker</span> compose ps                          <span class="cmt"># Check status</span>
+<span class="fn">docker</span> compose logs geoserver <span class="flag">--tail</span> <span class="num">50</span>    <span class="cmt"># Last 50 lines</span>
+<span class="fn">docker</span> inspect gis_geoserver | <span class="fn">jq</span> <span class="str">'.[0].State'</span>  <span class="cmt"># Detailed state</span>
+
+<span class="cmt">## PostGIS not accepting connections?</span>
+<span class="fn">docker</span> exec gis_postgis pg_isready <span class="flag">-U</span> gisuser <span class="flag">-d</span> gisdb
+
+<span class="cmt">## Martin shows no layers?</span>
+<span class="fn">curl</span> http://localhost:3000/catalog        <span class="cmt"># Check catalog</span>
+<span class="cmt">-- In psql: check geometry_columns</span>
+<span class="op">SELECT</span> * <span class="op">FROM</span> geometry_columns <span class="op">WHERE</span> f_table_schema = <span class="str">'gis'</span>;
+
+<span class="cmt">## GeoServer layer error?</span>
+<span class="cmt"># Check Layer Preview → OpenLayers in GeoServer UI</span>
+<span class="cmt"># Check GeoServer logs:</span>
+<span class="fn">docker</span> exec gis_geoserver \
+  <span class="fn">tail</span> <span class="flag">-f</span> /opt/geoserver/data_dir/logs/geoserver.log
+
+<span class="cmt">## Slow spatial query?</span>
+<span class="cmt">-- In psql: check for missing index</span>
+<span class="op">EXPLAIN ANALYZE</span> <span class="op">SELECT</span> * <span class="op">FROM</span> gis.my_layer
+<span class="op">WHERE</span> <span class="fn">ST_Within</span>(geom, <span class="fn">ST_MakeEnvelope</span>(<span class="num">36.7</span>,<span class="num">-1.4</span>,<span class="num">37.0</span>,<span class="num">-1.1</span>,<span class="num">4326</span>));
+<span class="cmt">-- If you see "Seq Scan" instead of "Index Scan" → create spatial index!</span>
+
+<span class="cmt">## Reset everything (nuclear option — DESTROYS DATA)</span>
+<span class="fn">docker</span> compose down <span class="flag">-v</span>   <span class="cmt"># -v removes volumes → data is gone!</span>
+<span class="fn">make</span> up</code></pre>
+  </div>
+
+  <div class="tip tip-danger">
+    <span class="tip-icon">🔥</span>
+    <span class="tip-body"><code>docker compose down -v</code> will permanently delete your PostGIS and GeoServer data volumes. Always run <code>make backup</code> before using <code>-v</code>.</span>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+// ── Copy button ──────────────────────────────────────────────
+function copyCode(btn) {
+  const pre = btn.closest('.code-block').querySelector('pre');
+  const text = pre.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = 'copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = 'copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  });
+}
+
+// ── Scroll progress bar ──────────────────────────────────────
+const bar = document.getElementById('scroll-progress');
+window.addEventListener('scroll', () => {
+  const pct = window.scrollY / (document.body.scrollHeight - window.innerHeight);
+  bar.style.transform = `scaleX(${pct})`;
+});
+
+// ── Active nav tracking ──────────────────────────────────────
+const sections = document.querySelectorAll('section[id], .hero');
+const navLinks = document.querySelectorAll('nav a');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      navLinks.forEach(a => a.classList.remove('active'));
+      const id = entry.target.id || 'start';
+      const link = document.querySelector(`nav a[href="#${id}"]`);
+      if (link) link.classList.add('active');
+    }
+  });
+}, { threshold: 0.25 });
+
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

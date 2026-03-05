@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "GIS PostGIS (local)",
+      "Group": "GIS Stack",
+      "Host": "postgis",
+      "Port": 5432,
+      "MaintenanceDB": "gisdb",
+      "Username": "gisuser",
+      "SSLMode": "prefer",
+      "PassFile": "",
+      "Comment": "Auto-registered by docker-compose"
+    }
+  }
+}
