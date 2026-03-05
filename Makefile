@@ -2,7 +2,7 @@
 # GIS Stack — Makefile
 # ============================================================
 
-.PHONY: up down restart logs ps health shell-db shell-gs import-vector import-raster backup restore
+.PHONY: up down restart logs ps health shell-db shell-gs import-vector import-raster backup restore seed ingest-logs ingest-build
 
 COMPOSE = docker compose
 DB_CONTAINER = gis_postgis
@@ -122,3 +122,18 @@ vacuum:
 martin-catalog:
 	@echo "Martin tile catalog:"
 	@curl -s http://localhost:$${MARTIN_PORT:-3000}/catalog | python3 -m json.tool
+
+# ── Data Seeding ──────────────────────────────────────────────
+
+seed:
+	@echo "▶ Downloading & loading Natural Earth sample data..."
+	bash seed.sh
+	@echo "✅ Seed complete."
+
+# ── GIS Ingest Service ─────────────────────────────────────────
+
+ingest-logs:
+	$(COMPOSE) logs -f gis-ingest
+
+ingest-build:
+	$(COMPOSE) build --no-cache gis-ingest

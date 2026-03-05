@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GIS Data Ingest</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .drop-zone.dragover { @apply border-blue-500 bg-blue-50; }
+    .log-line { font-family: monospace; font-size: 0.8rem; }
+    .stage-badge { transition: all 0.2s; }
+    #log-panel { max-height: 320px; overflow-y: auto; }
+    .spinner { animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Header -->
+<header class="bg-slate-800 text-white px-6 py-4 shadow-md">
+  <div class="max-w-4xl mx-auto flex items-center gap-3">
+    <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
+    </svg>
+    <div>
+      <h1 class="text-lg font-bold tracking-tight">GIS Data Ingest</h1>
+      <p class="text-slate-400 text-xs">Upload or fetch spatial data → validate → load into PostGIS</p>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
+
+  <!-- Input Card -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+
+    <!-- Tabs -->
+    <div class="flex border-b border-gray-200">
+      <button id="tab-upload" onclick="switchTab('upload')"
+        class="flex-1 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600 bg-blue-50 transition">
+        📁 Upload File
+      </button>
+      <button id="tab-url" onclick="switchTab('url')"
+        class="flex-1 py-3 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 transition">
+        🌐 Fetch from URL
+      </button>
+    </div>
+
+    <!-- Upload Tab -->
+    <div id="panel-upload" class="p-6">
+      <div id="drop-zone"
+        class="drop-zone border-2 border-dashed border-gray-300 rounded-lg p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
+        onclick="document.getElementById('file-input').click()"
+        ondragover="onDragOver(event)"
+        ondragleave="onDragLeave(event)"
+        ondrop="onDrop(event)">
+        <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <p class="text-sm text-gray-600 font-medium">Drop a file here or click to browse</p>
+        <p class="text-xs text-gray-400 mt-1">GeoJSON · Shapefile (.zip) · GeoPackage · KML · FlatGeobuf · CSV</p>
+        <input id="file-input" type="file" class="hidden"
+          accept=".geojson,.json,.zip,.gpkg,.kml,.fgb,.csv,.shp"
+          onchange="onFileSelected(this)"/>
+      </div>
+      <div id="file-info" class="hidden mt-3 flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-2">
+        <span class="text-lg">📄</span>
+        <span id="file-name" class="font-medium"></span>
+        <span id="file-size" class="text-gray-400 ml-auto"></span>
+      </div>
+      <button id="btn-inspect-upload" onclick="doInspect('upload')"
+        class="hidden mt-4 w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
+        🔍 Inspect File
+      </button>
+    </div>
+
+    <!-- URL Tab -->
+    <div id="panel-url" class="p-6 hidden">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Data URL</label>
+      <input id="url-input" type="url" placeholder="https://…"
+        class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"/>
+
+      <div class="mt-3">
+        <p class="text-xs text-gray-500 mb-2 font-medium">Quick fill — Natural Earth examples:</p>
+        <div class="flex flex-wrap gap-2">
+          <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/110m_cultural/ne_110m_admin_0_countries.zip')"
+            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            🌍 Countries 110m
+          </button>
+          <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_airports.zip')"
+            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            ✈️ Airports 10m
+          </button>
+          <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_ports.zip')"
+            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            🚢 Ports 10m
+          </button>
+          <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/110m_physical/ne_110m_rivers_lake_centerlines.zip')"
+            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            🌊 Rivers 110m
+          </button>
+          <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_roads.zip')"
+            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            🛣️ Roads 10m
+          </button>
+        </div>
+      </div>
+
+      <button id="btn-inspect-url" onclick="doInspect('url')"
+        class="mt-4 w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
+        🔍 Inspect URL
+      </button>
+    </div>
+  </div>
+
+  <!-- Inspect Result Card -->
+  <div id="inspect-card" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+    <div class="flex items-center justify-between">
+      <h2 class="text-base font-semibold text-gray-800">Inspection Result</h2>
+      <span id="format-badge" class="text-xs font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded"></span>
+    </div>
+
+    <!-- Layer selector (shown when >1 layer) -->
+    <div id="layer-selector-row" class="hidden">
+      <label class="block text-xs font-medium text-gray-600 mb-1">Layer</label>
+      <select id="layer-selector" onchange="onLayerChange()"
+        class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+      </select>
+    </div>
+
+    <!-- Layer stats -->
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div class="bg-blue-50 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-blue-700" id="stat-features">—</p>
+        <p class="text-xs text-blue-500 mt-0.5">Features</p>
+      </div>
+      <div class="bg-purple-50 rounded-lg p-3 text-center">
+        <p class="text-sm font-bold text-purple-700 truncate" id="stat-geomtype">—</p>
+        <p class="text-xs text-purple-500 mt-0.5">Geometry</p>
+      </div>
+      <div class="bg-teal-50 rounded-lg p-3 text-center">
+        <p class="text-sm font-bold text-teal-700 truncate" id="stat-crs">—</p>
+        <p class="text-xs text-teal-500 mt-0.5">CRS</p>
+      </div>
+      <div class="bg-orange-50 rounded-lg p-3 text-center">
+        <p class="text-sm font-bold text-orange-700" id="stat-fields">—</p>
+        <p class="text-xs text-orange-500 mt-0.5">Fields</p>
+      </div>
+    </div>
+
+    <!-- Extent -->
+    <div id="extent-row" class="hidden">
+      <p class="text-xs font-medium text-gray-500 mb-1">Extent (WGS 84)</p>
+      <code id="stat-extent" class="text-xs text-gray-600 bg-gray-50 px-3 py-1.5 rounded block"></code>
+    </div>
+
+    <!-- Fields table -->
+    <div>
+      <p class="text-xs font-medium text-gray-500 mb-2">Attribute Fields</p>
+      <div class="overflow-auto max-h-40 rounded border border-gray-200">
+        <table class="min-w-full text-xs">
+          <thead class="bg-gray-50 sticky top-0">
+            <tr>
+              <th class="text-left px-3 py-2 font-medium text-gray-600">Name</th>
+              <th class="text-left px-3 py-2 font-medium text-gray-600">Type</th>
+            </tr>
+          </thead>
+          <tbody id="fields-tbody" class="divide-y divide-gray-100"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Load Options -->
+    <div class="border-t border-gray-100 pt-5 space-y-4">
+      <h3 class="text-sm font-semibold text-gray-700">Load Options</h3>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Target Schema</label>
+          <select id="opt-schema"
+            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="gis">gis (production)</option>
+            <option value="staging">staging (testing)</option>
+            <option value="public">public</option>
+            <option value="raster">raster</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Table Name</label>
+          <input id="opt-table" type="text" placeholder="my_layer"
+            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"/>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+          <select id="opt-mode"
+            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            <option value="overwrite">Overwrite (replace)</option>
+            <option value="append">Append (add rows)</option>
+          </select>
+        </div>
+      </div>
+      <button id="btn-load" onclick="doLoad()"
+        class="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-lg transition flex items-center justify-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+        Load into PostGIS
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress Card -->
+  <div id="progress-card" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
+    <h2 class="text-base font-semibold text-gray-800">Loading Progress</h2>
+
+    <!-- Stage breadcrumb -->
+    <div class="flex items-center gap-1 flex-wrap" id="stage-bar">
+      <!-- Filled by JS -->
+    </div>
+
+    <!-- Log panel -->
+    <div id="log-panel" class="bg-gray-900 rounded-lg p-4 space-y-0.5">
+      <p class="text-gray-400 text-xs font-mono">Waiting for output…</p>
+    </div>
+
+    <!-- Final stats -->
+    <div id="final-stats" class="hidden bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-2">
+      <p class="text-emerald-800 text-sm font-semibold">✅ Load Complete</p>
+      <div class="grid grid-cols-3 gap-3 mt-2" id="stats-grid"></div>
+    </div>
+    <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
+      <p class="text-red-700 text-sm font-medium">❌ Load Failed</p>
+      <p id="error-msg" class="text-red-600 text-xs mt-1 font-mono"></p>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── State ─────────────────────────────────────────────────────
+let currentTab = 'upload';
+let currentFile = null;
+let inspectData = null;   // { source_path, inspect }
+let currentLayerIdx = 0;
+
+// ── Tab switching ──────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab;
+  ['upload', 'url'].forEach(t => {
+    const panel = document.getElementById('panel-' + t);
+    const btn = document.getElementById('tab-' + t);
+    if (t === tab) {
+      panel.classList.remove('hidden');
+      btn.classList.add('text-blue-600', 'border-blue-600', 'bg-blue-50');
+      btn.classList.remove('text-gray-500', 'border-transparent');
+    } else {
+      panel.classList.add('hidden');
+      btn.classList.remove('text-blue-600', 'border-blue-600', 'bg-blue-50');
+      btn.classList.add('text-gray-500', 'border-transparent');
+    }
+  });
+}
+
+// ── Drag & Drop ────────────────────────────────────────────────
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.add('border-blue-500', 'bg-blue-50');
+}
+function onDragLeave(e) {
+  document.getElementById('drop-zone').classList.remove('border-blue-500', 'bg-blue-50');
+}
+function onDrop(e) {
+  e.preventDefault();
+  onDragLeave(e);
+  const files = e.dataTransfer.files;
+  if (files.length > 0) {
+    setFile(files[0]);
+  }
+}
+function onFileSelected(input) {
+  if (input.files.length > 0) setFile(input.files[0]);
+}
+function setFile(f) {
+  currentFile = f;
+  document.getElementById('file-name').textContent = f.name;
+  document.getElementById('file-size').textContent = formatBytes(f.size);
+  document.getElementById('file-info').classList.remove('hidden');
+  document.getElementById('btn-inspect-upload').classList.remove('hidden');
+}
+function formatBytes(b) {
+  if (b < 1024) return b + ' B';
+  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
+  return (b/1048576).toFixed(1) + ' MB';
+}
+
+// ── URL quick-fill ─────────────────────────────────────────────
+function fillUrl(url) {
+  document.getElementById('url-input').value = url;
+}
+
+// ── Inspect ───────────────────────────────────────────────────
+async function doInspect(source) {
+  const btn = source === 'upload'
+    ? document.getElementById('btn-inspect-upload')
+    : document.getElementById('btn-inspect-url');
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Inspecting…';
+
+  hideInspectCard();
+  hideProgressCard();
+
+  try {
+    const fd = new FormData();
+    if (source === 'upload') {
+      if (!currentFile) throw new Error('No file selected');
+      fd.append('file', currentFile);
+    } else {
+      const url = document.getElementById('url-input').value.trim();
+      if (!url) throw new Error('Please enter a URL');
+      fd.append('url', url);
+    }
+
+    const resp = await fetch('/ingest/api/inspect', { method: 'POST', body: fd });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Inspect failed');
+    }
+    inspectData = await resp.json();
+    showInspectCard(inspectData);
+  } catch (e) {
+    alert('Inspect error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = source === 'upload' ? '🔍 Inspect File' : '🔍 Inspect URL';
+  }
+}
+
+function showInspectCard(data) {
+  const layers = data.inspect.layers;
+  if (!layers || layers.length === 0) {
+    alert('No layers found in this file.');
+    return;
+  }
+
+  // Layer selector
+  const sel = document.getElementById('layer-selector');
+  sel.innerHTML = '';
+  layers.forEach((l, i) => {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = l.name;
+    sel.appendChild(opt);
+  });
+
+  if (layers.length > 1) {
+    document.getElementById('layer-selector-row').classList.remove('hidden');
+  } else {
+    document.getElementById('layer-selector-row').classList.add('hidden');
+  }
+
+  document.getElementById('format-badge').textContent = data.inspect.format;
+  currentLayerIdx = 0;
+  renderLayerStats(layers[0]);
+
+  // Auto-fill table name from layer name
+  document.getElementById('opt-table').value =
+    layers[0].name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+
+  document.getElementById('inspect-card').classList.remove('hidden');
+}
+
+function onLayerChange() {
+  const idx = parseInt(document.getElementById('layer-selector').value, 10);
+  currentLayerIdx = idx;
+  const layer = inspectData.inspect.layers[idx];
+  renderLayerStats(layer);
+  document.getElementById('opt-table').value =
+    layer.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+}
+
+function renderLayerStats(layer) {
+  document.getElementById('stat-features').textContent =
+    layer.feature_count >= 0 ? layer.feature_count.toLocaleString() : '?';
+  document.getElementById('stat-geomtype').textContent =
+    layer.geometry_type || '?';
+  document.getElementById('stat-crs').textContent =
+    layer.crs ? layer.crs.split(':').pop() : 'Unknown';
+  document.getElementById('stat-fields').textContent =
+    (layer.fields || []).length;
+
+  // Extent
+  if (layer.extent) {
+    const [minx, miny, maxx, maxy] = layer.extent;
+    document.getElementById('stat-extent').textContent =
+      `[${minx.toFixed(4)}, ${miny.toFixed(4)}, ${maxx.toFixed(4)}, ${maxy.toFixed(4)}]`;
+    document.getElementById('extent-row').classList.remove('hidden');
+  } else {
+    document.getElementById('extent-row').classList.add('hidden');
+  }
+
+  // Fields table
+  const tbody = document.getElementById('fields-tbody');
+  tbody.innerHTML = '';
+  (layer.fields || []).forEach(f => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="px-3 py-1.5 text-gray-700">${escHtml(f.name)}</td>
+                    <td class="px-3 py-1.5 text-gray-500 font-mono">${escHtml(f.type)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function hideInspectCard() {
+  document.getElementById('inspect-card').classList.add('hidden');
+}
+
+// ── Load ──────────────────────────────────────────────────────
+async function doLoad() {
+  if (!inspectData) return;
+
+  const table = document.getElementById('opt-table').value.trim();
+  if (!table) { alert('Please enter a table name'); return; }
+
+  const schema = document.getElementById('opt-schema').value;
+  const mode   = document.getElementById('opt-mode').value;
+  const layer  = inspectData.inspect.layers[currentLayerIdx];
+
+  document.getElementById('btn-load').disabled = true;
+  document.getElementById('btn-load').innerHTML = `
+    <svg class="spinner w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+    </svg> Loading…`;
+
+  hideProgressCard();
+  showProgressCard();
+
+  try {
+    const resp = await fetch('/ingest/api/load', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_path: inspectData.source_path,
+        schema,
+        table,
+        mode,
+        layer_name: layer.name,
+      }),
+    });
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error || 'Load request failed');
+    }
+    const { job_id } = await resp.json();
+    listenToJob(job_id);
+  } catch (e) {
+    showError(e.message);
+    document.getElementById('btn-load').disabled = false;
+    document.getElementById('btn-load').textContent = 'Load into PostGIS';
+  }
+}
+
+function listenToJob(jobId) {
+  const es = new EventSource(`/ingest/api/jobs/${jobId}/events`);
+  const logPanel = document.getElementById('log-panel');
+  logPanel.innerHTML = '';
+
+  es.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    updateStageBadges(msg.stage);
+    appendLog(msg.message, msg.stage);
+
+    if (msg.stage === 'done') {
+      es.close();
+      showFinalStats(msg.data);
+      resetLoadBtn();
+    } else if (msg.stage === 'failed') {
+      es.close();
+      showError(msg.message);
+      resetLoadBtn();
+    }
+  };
+  es.onerror = () => {
+    es.close();
+    appendLog('Connection closed.', 'done');
+    resetLoadBtn();
+  };
+}
+
+const STAGES = ['downloading', 'inspecting', 'loading', 'validating', 'done'];
+const STAGE_LABELS = { downloading: '⬇️ Downloading', inspecting: '🔍 Inspecting', loading: '📥 Loading', validating: '✅ Validating', done: '🎉 Done', failed: '❌ Failed' };
+
+function updateStageBadges(current) {
+  const bar = document.getElementById('stage-bar');
+  const stages = current === 'failed' ? [...STAGES.slice(0, -1), 'failed'] : STAGES;
+  bar.innerHTML = stages.map((s, i) => {
+    const isDone = STAGES.indexOf(s) < STAGES.indexOf(current);
+    const isCurrent = s === current;
+    const color = isCurrent
+      ? (s === 'failed' ? 'bg-red-100 text-red-700 border-red-300' : 'bg-blue-100 text-blue-700 border-blue-300 font-semibold')
+      : isDone ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200';
+    const sep = i < stages.length - 1 ? '<span class="text-gray-300 mx-0.5">›</span>' : '';
+    return `<span class="stage-badge text-xs px-2 py-0.5 rounded border ${color}">${STAGE_LABELS[s] || s}</span>${sep}`;
+  }).join('');
+}
+
+function appendLog(msg, stage) {
+  const logPanel = document.getElementById('log-panel');
+  const color = stage === 'failed' ? 'text-red-400' : stage === 'done' ? 'text-emerald-400' : 'text-gray-300';
+  const p = document.createElement('p');
+  p.className = `log-line ${color}`;
+  p.textContent = msg;
+  logPanel.appendChild(p);
+  logPanel.scrollTop = logPanel.scrollHeight;
+}
+
+function showFinalStats(data) {
+  if (!data) return;
+  const grid = document.getElementById('stats-grid');
+  grid.innerHTML = [
+    { label: 'Total Rows', value: (data.total_rows || 0).toLocaleString(), color: 'text-emerald-700' },
+    { label: 'Null Geom', value: data.null_geom || 0, color: data.null_geom > 0 ? 'text-amber-600' : 'text-emerald-700' },
+    { label: 'Invalid Geom', value: data.invalid_geom || 0, color: data.invalid_geom > 0 ? 'text-red-600' : 'text-emerald-700' },
+  ].map(s => `
+    <div class="bg-white rounded-lg p-3 text-center border border-emerald-100">
+      <p class="text-xl font-bold ${s.color}">${s.value}</p>
+      <p class="text-xs text-gray-500 mt-0.5">${s.label}</p>
+    </div>`).join('');
+
+  document.getElementById('final-stats').classList.remove('hidden');
+}
+
+function showError(msg) {
+  document.getElementById('error-msg').textContent = msg;
+  document.getElementById('error-box').classList.remove('hidden');
+}
+
+function resetLoadBtn() {
+  const btn = document.getElementById('btn-load');
+  btn.disabled = false;
+  btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+  </svg> Load into PostGIS`;
+}
+
+function showProgressCard() {
+  document.getElementById('progress-card').classList.remove('hidden');
+  document.getElementById('final-stats').classList.add('hidden');
+  document.getElementById('error-box').classList.add('hidden');
+  document.getElementById('stage-bar').innerHTML = '';
+  document.getElementById('log-panel').innerHTML = '<p class="text-gray-400 text-xs font-mono">Starting…</p>';
+}
+function hideProgressCard() {
+  document.getElementById('progress-card').classList.add('hidden');
+}
+
+function escHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+</script>
+</body>
+</html>

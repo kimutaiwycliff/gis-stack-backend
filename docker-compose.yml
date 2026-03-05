@@ -126,6 +126,29 @@ services:
       - gis_net
 
   # ============================================================
+  # GIS Ingest — Rust data ingestion service with web UI
+  # ============================================================
+  gis-ingest:
+    build: ./gis-ingest
+    container_name: gis_ingest
+    restart: unless-stopped
+    depends_on:
+      postgis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gisuser}:${POSTGRES_PASSWORD}@postgis:5432/${POSTGRES_DB:-gisdb}
+      INGEST_PORT: "8000"
+      RUST_LOG: "info"
+    networks:
+      - gis_net
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8000/ingest/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ============================================================
   # Nginx — Reverse proxy, unify everything on port 80
   # ============================================================
   nginx:
@@ -136,6 +159,8 @@ services:
       geoserver:
         condition: service_healthy
       martin:
+        condition: service_healthy
+      gis-ingest:
         condition: service_healthy
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
