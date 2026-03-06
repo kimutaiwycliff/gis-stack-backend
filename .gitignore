@@ -1,4 +1,15 @@
+# Secrets
 .env
-backups/
+
+# Rust build artifacts (never commit these — can be 500MB+)
+gis-ingest/target/
+
+# Tile data files (large binaries, load separately)
 tiles/*.mbtiles
 tiles/*.pmtiles
+
+# Local backups
+backups/
+
+# macOS noise
+.DS_Store

@@ -1,48 +1,77 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>GIS Data Ingest</title>
+  <!-- Apply saved preference before render to prevent flash -->
+  <script>
+    if (localStorage.getItem('theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+    }
+  </script>
+  <script>tailwind.config = { darkMode: 'class' }</script>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    .drop-zone.dragover { @apply border-blue-500 bg-blue-50; }
     .log-line { font-family: monospace; font-size: 0.8rem; }
     .stage-badge { transition: all 0.2s; }
     #log-panel { max-height: 320px; overflow-y: auto; }
     .spinner { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* Dragover handled via .dragover class toggled in JS */
+    .drop-zone.dragover {
+      border-color: #3b82f6;
+      background-color: rgba(219, 234, 254, 0.4);
+    }
+    .dark .drop-zone.dragover {
+      border-color: #60a5fa;
+      background-color: rgba(30, 58, 138, 0.25);
+    }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-50 dark:bg-gray-950 min-h-screen transition-colors duration-200">
 
 <!-- Header -->
-<header class="bg-slate-800 text-white px-6 py-4 shadow-md">
+<header class="bg-slate-800 dark:bg-slate-900 text-white px-6 py-4 shadow-md">
   <div class="max-w-4xl mx-auto flex items-center gap-3">
-    <svg class="w-7 h-7 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <svg class="w-7 h-7 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
         d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
     </svg>
     <div>
       <h1 class="text-lg font-bold tracking-tight">GIS Data Ingest</h1>
-      <p class="text-slate-400 text-xs">Upload or fetch spatial data → validate → load into PostGIS</p>
+      <p class="text-slate-400 dark:text-slate-500 text-xs">Upload or fetch spatial data → validate → load into PostGIS</p>
     </div>
+    <!-- Theme toggle -->
+    <button id="theme-toggle" onclick="toggleTheme()" title="Toggle theme"
+      class="ml-auto p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 dark:hover:bg-slate-800 transition">
+      <!-- Sun: shown when in dark mode -->
+      <svg id="icon-sun" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 3v1m0 16v1m8.66-9h-1M4.34 12h-1m15.07-6.07-.71.71M6.34 17.66l-.71.71M17.66 17.66l.71.71M6.34 6.34l.71.71M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+      </svg>
+      <!-- Moon: shown when in light mode -->
+      <svg id="icon-moon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
+      </svg>
+    </button>
   </div>
 </header>
 
 <main class="max-w-4xl mx-auto px-4 py-8 space-y-6">
 
   <!-- Input Card -->
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
 
     <!-- Tabs -->
-    <div class="flex border-b border-gray-200">
+    <div class="flex border-b border-gray-200 dark:border-gray-700">
       <button id="tab-upload" onclick="switchTab('upload')"
-        class="flex-1 py-3 text-sm font-medium text-blue-600 border-b-2 border-blue-600 bg-blue-50 transition">
+        class="flex-1 py-3 text-sm font-medium text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 transition">
         📁 Upload File
       </button>
       <button id="tab-url" onclick="switchTab('url')"
-        class="flex-1 py-3 text-sm font-medium text-gray-500 border-b-2 border-transparent hover:text-gray-700 transition">
+        class="flex-1 py-3 text-sm font-medium text-gray-500 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-700 dark:hover:text-gray-200 transition">
         🌐 Fetch from URL
       </button>
     </div>
@@ -50,25 +79,25 @@
     <!-- Upload Tab -->
     <div id="panel-upload" class="p-6">
       <div id="drop-zone"
-        class="drop-zone border-2 border-dashed border-gray-300 rounded-lg p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition"
+        class="drop-zone border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-10 text-center cursor-pointer hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition"
         onclick="document.getElementById('file-input').click()"
         ondragover="onDragOver(event)"
         ondragleave="onDragLeave(event)"
         ondrop="onDrop(event)">
-        <svg class="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="mx-auto h-12 w-12 text-gray-400 dark:text-gray-500 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
             d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
         </svg>
-        <p class="text-sm text-gray-600 font-medium">Drop a file here or click to browse</p>
-        <p class="text-xs text-gray-400 mt-1">GeoJSON · Shapefile (.zip) · GeoPackage · KML · FlatGeobuf · CSV</p>
+        <p class="text-sm text-gray-600 dark:text-gray-400 font-medium">Drop a file here or click to browse</p>
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">GeoJSON · Shapefile (.zip) · GeoPackage · KML · FlatGeobuf · CSV</p>
         <input id="file-input" type="file" class="hidden"
           accept=".geojson,.json,.zip,.gpkg,.kml,.fgb,.csv,.shp"
           onchange="onFileSelected(this)"/>
       </div>
-      <div id="file-info" class="hidden mt-3 flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-4 py-2">
+      <div id="file-info" class="hidden mt-3 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 rounded-lg px-4 py-2">
         <span class="text-lg">📄</span>
         <span id="file-name" class="font-medium"></span>
-        <span id="file-size" class="text-gray-400 ml-auto"></span>
+        <span id="file-size" class="text-gray-400 dark:text-gray-500 ml-auto"></span>
       </div>
       <button id="btn-inspect-upload" onclick="doInspect('upload')"
         class="hidden mt-4 w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition">
@@ -78,31 +107,31 @@
 
     <!-- URL Tab -->
     <div id="panel-url" class="p-6 hidden">
-      <label class="block text-sm font-medium text-gray-700 mb-2">Data URL</label>
+      <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data URL</label>
       <input id="url-input" type="url" placeholder="https://…"
-        class="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"/>
+        class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"/>
 
       <div class="mt-3">
-        <p class="text-xs text-gray-500 mb-2 font-medium">Quick fill — Natural Earth examples:</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Quick fill — Natural Earth examples:</p>
         <div class="flex flex-wrap gap-2">
           <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/110m_cultural/ne_110m_admin_0_countries.zip')"
-            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            class="text-xs px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
             🌍 Countries 110m
           </button>
           <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_airports.zip')"
-            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            class="text-xs px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
             ✈️ Airports 10m
           </button>
           <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_ports.zip')"
-            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            class="text-xs px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
             🚢 Ports 10m
           </button>
           <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/110m_physical/ne_110m_rivers_lake_centerlines.zip')"
-            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            class="text-xs px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
             🌊 Rivers 110m
           </button>
           <button onclick="fillUrl('https://naturalearth.s3.amazonaws.com/10m_cultural/ne_10m_roads.zip')"
-            class="text-xs px-2 py-1 bg-emerald-50 text-emerald-700 rounded border border-emerald-200 hover:bg-emerald-100 transition">
+            class="text-xs px-2 py-1 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 rounded border border-emerald-200 dark:border-emerald-700 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition">
             🛣️ Roads 10m
           </button>
         </div>
@@ -116,70 +145,70 @@
   </div>
 
   <!-- Inspect Result Card -->
-  <div id="inspect-card" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-5">
+  <div id="inspect-card" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-5">
     <div class="flex items-center justify-between">
-      <h2 class="text-base font-semibold text-gray-800">Inspection Result</h2>
-      <span id="format-badge" class="text-xs font-mono px-2 py-0.5 bg-slate-100 text-slate-600 rounded"></span>
+      <h2 class="text-base font-semibold text-gray-800 dark:text-gray-100">Inspection Result</h2>
+      <span id="format-badge" class="text-xs font-mono px-2 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded"></span>
     </div>
 
     <!-- Layer selector (shown when >1 layer) -->
     <div id="layer-selector-row" class="hidden">
-      <label class="block text-xs font-medium text-gray-600 mb-1">Layer</label>
+      <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Layer</label>
       <select id="layer-selector" onchange="onLayerChange()"
-        class="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+        class="border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
       </select>
     </div>
 
     <!-- Layer stats -->
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-      <div class="bg-blue-50 rounded-lg p-3 text-center">
-        <p class="text-2xl font-bold text-blue-700" id="stat-features">—</p>
-        <p class="text-xs text-blue-500 mt-0.5">Features</p>
+      <div class="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
+        <p class="text-2xl font-bold text-blue-700 dark:text-blue-300" id="stat-features">—</p>
+        <p class="text-xs text-blue-500 dark:text-blue-400 mt-0.5">Features</p>
       </div>
-      <div class="bg-purple-50 rounded-lg p-3 text-center">
-        <p class="text-sm font-bold text-purple-700 truncate" id="stat-geomtype">—</p>
-        <p class="text-xs text-purple-500 mt-0.5">Geometry</p>
+      <div class="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 text-center">
+        <p class="text-sm font-bold text-purple-700 dark:text-purple-300 truncate" id="stat-geomtype">—</p>
+        <p class="text-xs text-purple-500 dark:text-purple-400 mt-0.5">Geometry</p>
       </div>
-      <div class="bg-teal-50 rounded-lg p-3 text-center">
-        <p class="text-sm font-bold text-teal-700 truncate" id="stat-crs">—</p>
-        <p class="text-xs text-teal-500 mt-0.5">CRS</p>
+      <div class="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-3 text-center">
+        <p class="text-sm font-bold text-teal-700 dark:text-teal-300 truncate" id="stat-crs">—</p>
+        <p class="text-xs text-teal-500 dark:text-teal-400 mt-0.5">CRS</p>
       </div>
-      <div class="bg-orange-50 rounded-lg p-3 text-center">
-        <p class="text-sm font-bold text-orange-700" id="stat-fields">—</p>
-        <p class="text-xs text-orange-500 mt-0.5">Fields</p>
+      <div class="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 text-center">
+        <p class="text-sm font-bold text-orange-700 dark:text-orange-300" id="stat-fields">—</p>
+        <p class="text-xs text-orange-500 dark:text-orange-400 mt-0.5">Fields</p>
       </div>
     </div>
 
     <!-- Extent -->
     <div id="extent-row" class="hidden">
-      <p class="text-xs font-medium text-gray-500 mb-1">Extent (WGS 84)</p>
-      <code id="stat-extent" class="text-xs text-gray-600 bg-gray-50 px-3 py-1.5 rounded block"></code>
+      <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Extent (WGS 84)</p>
+      <code id="stat-extent" class="text-xs text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-800 px-3 py-1.5 rounded block"></code>
     </div>
 
     <!-- Fields table -->
     <div>
-      <p class="text-xs font-medium text-gray-500 mb-2">Attribute Fields</p>
-      <div class="overflow-auto max-h-40 rounded border border-gray-200">
+      <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Attribute Fields</p>
+      <div class="overflow-auto max-h-40 rounded border border-gray-200 dark:border-gray-700">
         <table class="min-w-full text-xs">
-          <thead class="bg-gray-50 sticky top-0">
+          <thead class="bg-gray-50 dark:bg-gray-800 sticky top-0">
             <tr>
-              <th class="text-left px-3 py-2 font-medium text-gray-600">Name</th>
-              <th class="text-left px-3 py-2 font-medium text-gray-600">Type</th>
+              <th class="text-left px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Name</th>
+              <th class="text-left px-3 py-2 font-medium text-gray-600 dark:text-gray-400">Type</th>
             </tr>
           </thead>
-          <tbody id="fields-tbody" class="divide-y divide-gray-100"></tbody>
+          <tbody id="fields-tbody" class="divide-y divide-gray-100 dark:divide-gray-700"></tbody>
         </table>
       </div>
     </div>
 
     <!-- Load Options -->
-    <div class="border-t border-gray-100 pt-5 space-y-4">
-      <h3 class="text-sm font-semibold text-gray-700">Load Options</h3>
+    <div class="border-t border-gray-100 dark:border-gray-700 pt-5 space-y-4">
+      <h3 class="text-sm font-semibold text-gray-700 dark:text-gray-200">Load Options</h3>
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Target Schema</label>
+          <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Target Schema</label>
           <select id="opt-schema"
-            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
             <option value="gis">gis (production)</option>
             <option value="staging">staging (testing)</option>
             <option value="public">public</option>
@@ -187,14 +216,14 @@
           </select>
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Table Name</label>
+          <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Table Name</label>
           <input id="opt-table" type="text" placeholder="my_layer"
-            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none"/>
+            class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"/>
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Mode</label>
+          <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Mode</label>
           <select id="opt-mode"
-            class="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+            class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none">
             <option value="overwrite">Overwrite (replace)</option>
             <option value="append">Append (add rows)</option>
           </select>
@@ -211,8 +240,8 @@
   </div>
 
   <!-- Progress Card -->
-  <div id="progress-card" class="hidden bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
-    <h2 class="text-base font-semibold text-gray-800">Loading Progress</h2>
+  <div id="progress-card" class="hidden bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+    <h2 class="text-base font-semibold text-gray-800 dark:text-gray-100">Loading Progress</h2>
 
     <!-- Stage breadcrumb -->
     <div class="flex items-center gap-1 flex-wrap" id="stage-bar">
@@ -220,24 +249,39 @@
     </div>
 
     <!-- Log panel -->
-    <div id="log-panel" class="bg-gray-900 rounded-lg p-4 space-y-0.5">
+    <div id="log-panel" class="bg-gray-900 dark:bg-black rounded-lg p-4 space-y-0.5">
       <p class="text-gray-400 text-xs font-mono">Waiting for output…</p>
     </div>
 
     <!-- Final stats -->
-    <div id="final-stats" class="hidden bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-2">
-      <p class="text-emerald-800 text-sm font-semibold">✅ Load Complete</p>
+    <div id="final-stats" class="hidden bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700 rounded-lg p-4 space-y-2">
+      <p class="text-emerald-800 dark:text-emerald-300 text-sm font-semibold">✅ Load Complete</p>
       <div class="grid grid-cols-3 gap-3 mt-2" id="stats-grid"></div>
     </div>
-    <div id="error-box" class="hidden bg-red-50 border border-red-200 rounded-lg p-4">
-      <p class="text-red-700 text-sm font-medium">❌ Load Failed</p>
-      <p id="error-msg" class="text-red-600 text-xs mt-1 font-mono"></p>
+    <div id="error-box" class="hidden bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-4">
+      <p class="text-red-700 dark:text-red-400 text-sm font-medium">❌ Load Failed</p>
+      <p id="error-msg" class="text-red-600 dark:text-red-400 text-xs mt-1 font-mono"></p>
     </div>
   </div>
 
 </main>
 
 <script>
+// ── Theme ──────────────────────────────────────────────────────
+function toggleTheme() {
+  const isDark = document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', isDark ? 'dark' : 'light');
+  updateThemeIcon(isDark);
+}
+
+function updateThemeIcon(isDark) {
+  document.getElementById('icon-sun').classList.toggle('hidden', !isDark);
+  document.getElementById('icon-moon').classList.toggle('hidden', isDark);
+}
+
+// Sync icon to initial state on load
+updateThemeIcon(document.documentElement.classList.contains('dark'));
+
 // ── State ─────────────────────────────────────────────────────
 let currentTab = 'upload';
 let currentFile = null;
@@ -252,12 +296,12 @@ function switchTab(tab) {
     const btn = document.getElementById('tab-' + t);
     if (t === tab) {
       panel.classList.remove('hidden');
-      btn.classList.add('text-blue-600', 'border-blue-600', 'bg-blue-50');
-      btn.classList.remove('text-gray-500', 'border-transparent');
+      btn.classList.add('text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400', 'bg-blue-50', 'dark:bg-blue-900/20');
+      btn.classList.remove('text-gray-500', 'dark:text-gray-400', 'border-transparent');
     } else {
       panel.classList.add('hidden');
-      btn.classList.remove('text-blue-600', 'border-blue-600', 'bg-blue-50');
-      btn.classList.add('text-gray-500', 'border-transparent');
+      btn.classList.remove('text-blue-600', 'dark:text-blue-400', 'border-blue-600', 'dark:border-blue-400', 'bg-blue-50', 'dark:bg-blue-900/20');
+      btn.classList.add('text-gray-500', 'dark:text-gray-400', 'border-transparent');
     }
   });
 }
@@ -265,18 +309,16 @@ function switchTab(tab) {
 // ── Drag & Drop ────────────────────────────────────────────────
 function onDragOver(e) {
   e.preventDefault();
-  document.getElementById('drop-zone').classList.add('border-blue-500', 'bg-blue-50');
+  document.getElementById('drop-zone').classList.add('dragover');
 }
 function onDragLeave(e) {
-  document.getElementById('drop-zone').classList.remove('border-blue-500', 'bg-blue-50');
+  document.getElementById('drop-zone').classList.remove('dragover');
 }
 function onDrop(e) {
   e.preventDefault();
   onDragLeave(e);
   const files = e.dataTransfer.files;
-  if (files.length > 0) {
-    setFile(files[0]);
-  }
+  if (files.length > 0) setFile(files[0]);
 }
 function onFileSelected(input) {
   if (input.files.length > 0) setFile(input.files[0]);
@@ -344,7 +386,6 @@ function showInspectCard(data) {
     return;
   }
 
-  // Layer selector
   const sel = document.getElementById('layer-selector');
   sel.innerHTML = '';
   layers.forEach((l, i) => {
@@ -364,7 +405,6 @@ function showInspectCard(data) {
   currentLayerIdx = 0;
   renderLayerStats(layers[0]);
 
-  // Auto-fill table name from layer name
   document.getElementById('opt-table').value =
     layers[0].name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
 
@@ -390,7 +430,6 @@ function renderLayerStats(layer) {
   document.getElementById('stat-fields').textContent =
     (layer.fields || []).length;
 
-  // Extent
   if (layer.extent) {
     const [minx, miny, maxx, maxy] = layer.extent;
     document.getElementById('stat-extent').textContent =
@@ -400,13 +439,12 @@ function renderLayerStats(layer) {
     document.getElementById('extent-row').classList.add('hidden');
   }
 
-  // Fields table
   const tbody = document.getElementById('fields-tbody');
   tbody.innerHTML = '';
   (layer.fields || []).forEach(f => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td class="px-3 py-1.5 text-gray-700">${escHtml(f.name)}</td>
-                    <td class="px-3 py-1.5 text-gray-500 font-mono">${escHtml(f.type)}</td>`;
+    tr.innerHTML = `<td class="px-3 py-1.5 text-gray-700 dark:text-gray-300">${escHtml(f.name)}</td>
+                    <td class="px-3 py-1.5 text-gray-500 dark:text-gray-400 font-mono">${escHtml(f.type)}</td>`;
     tbody.appendChild(tr);
   });
 }
@@ -489,18 +527,34 @@ function listenToJob(jobId) {
 }
 
 const STAGES = ['downloading', 'inspecting', 'loading', 'validating', 'done'];
-const STAGE_LABELS = { downloading: '⬇️ Downloading', inspecting: '🔍 Inspecting', loading: '📥 Loading', validating: '✅ Validating', done: '🎉 Done', failed: '❌ Failed' };
+const STAGE_LABELS = {
+  downloading: '⬇️ Downloading',
+  inspecting:  '🔍 Inspecting',
+  loading:     '📥 Loading',
+  validating:  '✅ Validating',
+  done:        '🎉 Done',
+  failed:      '❌ Failed',
+};
 
 function updateStageBadges(current) {
   const bar = document.getElementById('stage-bar');
   const stages = current === 'failed' ? [...STAGES.slice(0, -1), 'failed'] : STAGES;
   bar.innerHTML = stages.map((s, i) => {
-    const isDone = STAGES.indexOf(s) < STAGES.indexOf(current);
+    const isDone    = STAGES.indexOf(s) < STAGES.indexOf(current);
     const isCurrent = s === current;
-    const color = isCurrent
-      ? (s === 'failed' ? 'bg-red-100 text-red-700 border-red-300' : 'bg-blue-100 text-blue-700 border-blue-300 font-semibold')
-      : isDone ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : 'bg-gray-50 text-gray-400 border-gray-200';
-    const sep = i < stages.length - 1 ? '<span class="text-gray-300 mx-0.5">›</span>' : '';
+    let color;
+    if (isCurrent && s === 'failed') {
+      color = 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 border-red-300 dark:border-red-700';
+    } else if (isCurrent) {
+      color = 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-600 font-semibold';
+    } else if (isDone) {
+      color = 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-700';
+    } else {
+      color = 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-gray-600';
+    }
+    const sep = i < stages.length - 1
+      ? '<span class="text-gray-300 dark:text-gray-600 mx-0.5">›</span>'
+      : '';
     return `<span class="stage-badge text-xs px-2 py-0.5 rounded border ${color}">${STAGE_LABELS[s] || s}</span>${sep}`;
   }).join('');
 }
@@ -519,13 +573,13 @@ function showFinalStats(data) {
   if (!data) return;
   const grid = document.getElementById('stats-grid');
   grid.innerHTML = [
-    { label: 'Total Rows', value: (data.total_rows || 0).toLocaleString(), color: 'text-emerald-700' },
-    { label: 'Null Geom', value: data.null_geom || 0, color: data.null_geom > 0 ? 'text-amber-600' : 'text-emerald-700' },
-    { label: 'Invalid Geom', value: data.invalid_geom || 0, color: data.invalid_geom > 0 ? 'text-red-600' : 'text-emerald-700' },
+    { label: 'Total Rows',    value: (data.total_rows || 0).toLocaleString(), color: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Null Geom',     value: data.null_geom    || 0, color: data.null_geom    > 0 ? 'text-amber-600 dark:text-amber-400'   : 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Invalid Geom',  value: data.invalid_geom || 0, color: data.invalid_geom > 0 ? 'text-red-600 dark:text-red-400'       : 'text-emerald-700 dark:text-emerald-400' },
   ].map(s => `
-    <div class="bg-white rounded-lg p-3 text-center border border-emerald-100">
+    <div class="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-emerald-100 dark:border-emerald-800">
       <p class="text-xl font-bold ${s.color}">${s.value}</p>
-      <p class="text-xs text-gray-500 mt-0.5">${s.label}</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${s.label}</p>
     </div>`).join('');
 
   document.getElementById('final-stats').classList.remove('hidden');
