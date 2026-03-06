@@ -152,15 +152,25 @@ async fn inspect_handler(
         )));
     };
 
-    let result = inspect::inspect_file(&inspect_path)
+    // ZIP files require GDAL's /vsizip/ virtual filesystem prefix.
+    // Bare "path.zip" is NOT auto-detected by ogrinfo/ogr2ogr.
+    // We store the gdal_path as source_path so the load step uses the same path.
+    let gdal_path = if inspect_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("zip"))
+        .unwrap_or(false)
+    {
+        std::path::PathBuf::from(format!("/vsizip/{}", inspect_path.display()))
+    } else {
+        inspect_path
+    };
+
+    let result = inspect::inspect_file(&gdal_path)
         .await
         .map_err(|e| error::AppError(e))?;
 
-    // Store the temp path in the response so the load endpoint can use it
-    // We encode as a job-less "pending source" by returning the temp path.
-    // For simplicity, we persist the temp dir by leaking it — cleaned by jobs GC.
-    // In production, associate with a session/token.
-    let source_path = inspect_path.to_string_lossy().to_string();
+    let source_path = gdal_path.to_string_lossy().to_string();
 
     Ok(Json(serde_json::json!({
         "source_path": source_path,
