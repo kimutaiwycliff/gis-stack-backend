@@ -18,7 +18,6 @@
     #log-panel { max-height: 320px; overflow-y: auto; }
     .spinner { animation: spin 1s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    /* Dragover handled via .dragover class toggled in JS */
     .drop-zone.dragover {
       border-color: #3b82f6;
       background-color: rgba(219, 234, 254, 0.4);
@@ -27,9 +26,52 @@
       border-color: #60a5fa;
       background-color: rgba(30, 58, 138, 0.25);
     }
+    /* Modal entry animation */
+    #error-modal > div:last-child {
+      animation: modal-in 0.18s ease-out;
+    }
+    @keyframes modal-in {
+      from { opacity: 0; transform: scale(0.95) translateY(-8px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0); }
+    }
   </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-950 min-h-screen transition-colors duration-200">
+
+<!-- ── Error Modal ─────────────────────────────────────────────── -->
+<div id="error-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+  <!-- Overlay -->
+  <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick="closeErrorModal()"></div>
+  <!-- Card -->
+  <div class="relative bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 max-w-md w-full p-6 space-y-4">
+    <!-- Icon + Title -->
+    <div class="flex items-start gap-3">
+      <div class="shrink-0 w-10 h-10 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+        <svg class="w-5 h-5 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+      <div class="flex-1 min-w-0">
+        <h3 id="modal-title" class="text-base font-semibold text-gray-900 dark:text-gray-100"></h3>
+        <p id="modal-message" class="text-sm text-gray-600 dark:text-gray-400 mt-1 leading-relaxed"></p>
+      </div>
+    </div>
+    <!-- Technical detail (collapsible) -->
+    <details id="modal-detail-wrapper" class="hidden">
+      <summary class="text-xs text-gray-400 dark:text-gray-500 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300 select-none">
+        Technical details
+      </summary>
+      <pre id="modal-detail"
+        class="mt-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg p-3 overflow-auto max-h-32 whitespace-pre-wrap break-all font-mono border border-gray-200 dark:border-gray-700"></pre>
+    </details>
+    <!-- Close -->
+    <button onclick="closeErrorModal()"
+      class="w-full py-2 px-4 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-lg transition">
+      Dismiss
+    </button>
+  </div>
+</div>
 
 <!-- Header -->
 <header class="bg-slate-800 dark:bg-slate-900 text-white px-6 py-4 shadow-md">
@@ -45,12 +87,10 @@
     <!-- Theme toggle -->
     <button id="theme-toggle" onclick="toggleTheme()" title="Toggle theme"
       class="ml-auto p-2 rounded-lg text-slate-300 hover:text-white hover:bg-slate-700 dark:hover:bg-slate-800 transition">
-      <!-- Sun: shown when in dark mode -->
       <svg id="icon-sun" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M12 3v1m0 16v1m8.66-9h-1M4.34 12h-1m15.07-6.07-.71.71M6.34 17.66l-.71.71M17.66 17.66l.71.71M6.34 6.34l.71.71M12 8a4 4 0 100 8 4 4 0 000-8z"/>
       </svg>
-      <!-- Moon: shown when in light mode -->
       <svg id="icon-moon" class="w-5 h-5 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/>
@@ -110,6 +150,7 @@
       <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data URL</label>
       <input id="url-input" type="url" placeholder="https://…"
         class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-4 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"/>
+      <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Supported: .geojson, .zip (Shapefile), .gpkg, .kml, .fgb, .csv</p>
 
       <div class="mt-3">
         <p class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium">Quick fill — Natural Earth examples:</p>
@@ -218,7 +259,9 @@
         <div>
           <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Table Name</label>
           <input id="opt-table" type="text" placeholder="my_layer"
+            oninput="validateTableName(this.value)"
             class="w-full border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 outline-none"/>
+          <p id="table-hint" class="text-xs mt-1 hidden"></p>
         </div>
         <div>
           <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Mode</label>
@@ -244,9 +287,7 @@
     <h2 class="text-base font-semibold text-gray-800 dark:text-gray-100">Loading Progress</h2>
 
     <!-- Stage breadcrumb -->
-    <div class="flex items-center gap-1 flex-wrap" id="stage-bar">
-      <!-- Filled by JS -->
-    </div>
+    <div class="flex items-center gap-1 flex-wrap" id="stage-bar"></div>
 
     <!-- Log panel -->
     <div id="log-panel" class="bg-gray-900 dark:bg-black rounded-lg p-4 space-y-0.5">
@@ -273,20 +314,223 @@ function toggleTheme() {
   localStorage.setItem('theme', isDark ? 'dark' : 'light');
   updateThemeIcon(isDark);
 }
-
 function updateThemeIcon(isDark) {
   document.getElementById('icon-sun').classList.toggle('hidden', !isDark);
   document.getElementById('icon-moon').classList.toggle('hidden', isDark);
 }
-
-// Sync icon to initial state on load
 updateThemeIcon(document.documentElement.classList.contains('dark'));
+
+// ── Error Modal ────────────────────────────────────────────────
+
+/**
+ * Map a raw backend/network error string to a user-friendly title + message.
+ * Returns { title, message, detail } where detail is the raw string (may be null).
+ */
+function classifyError(raw) {
+  const r = (raw || '').toLowerCase();
+
+  // Unsupported / unrecognised format (GDAL Error 4)
+  if (r.includes('not recognised as a supported file format') ||
+      r.includes('error 4') ||
+      r.includes('not recognized as a supported file format')) {
+    return {
+      title: 'Unsupported File Format',
+      message: 'This file is not recognised as a spatial data format. ' +
+               'Supported vector formats are: GeoJSON (.geojson/.json), ' +
+               'Shapefile (.zip), GeoPackage (.gpkg), KML (.kml), ' +
+               'FlatGeobuf (.fgb), and CSV with coordinates (.csv).',
+      detail: raw,
+    };
+  }
+
+  // Raster file uploaded to vector-only tool
+  if (r.includes('raster dataset') || r.includes('geotiff') ||
+      (r.includes('.tif') && r.includes('not supported'))) {
+    return {
+      title: 'Raster Files Not Supported',
+      message: 'This appears to be a raster file (e.g. GeoTIFF). ' +
+               'This tool loads vector data only. Use a raster import ' +
+               'workflow (e.g. raster2pgsql) for raster datasets.',
+      detail: raw,
+    };
+  }
+
+  // No layers found
+  if (r.includes('no layers') || r.includes('0 layers') ||
+      r.includes('no features') || r.includes('0 features')) {
+    return {
+      title: 'No Spatial Layers Found',
+      message: 'The file opened successfully but contains no spatial layers. ' +
+               'Verify that the file contains vector geometry data and is not empty.',
+      detail: raw,
+    };
+  }
+
+  // ZIP without shapefile components
+  if (r.includes('.zip') && (r.includes('.shp') || r.includes('shapefile'))) {
+    return {
+      title: 'Invalid ZIP — Missing Shapefile Components',
+      message: 'The ZIP archive does not contain a valid Shapefile. ' +
+               'Make sure the ZIP includes all required components: ' +
+               '.shp, .dbf, and .prj files.',
+      detail: raw,
+    };
+  }
+
+  // Network / download failures
+  if (r.includes('failed to fetch url') || r.includes('failed to connect to') ||
+      r.includes('could not resolve host') || r.includes('name resolution') ||
+      r.includes('connection refused') || r.includes('timed out')) {
+    return {
+      title: 'Download Failed',
+      message: 'Could not download the file from the provided URL. ' +
+               'Check the URL is correct, publicly accessible, and that ' +
+               'the server is reachable from the ingest service.',
+      detail: raw,
+    };
+  }
+
+  // HTTP 404
+  if (r.includes('http 404') || r.includes('status: 404')) {
+    return {
+      title: 'File Not Found (HTTP 404)',
+      message: 'The server returned "Not Found" for this URL. ' +
+               'The file may have moved or the URL may be incorrect.',
+      detail: raw,
+    };
+  }
+
+  // Other HTTP errors (4xx / 5xx)
+  if (/http [45]\d\d/.test(r) || r.includes('status: 4') || r.includes('status: 5')) {
+    return {
+      title: 'HTTP Error',
+      message: 'The remote server returned an error response. ' +
+               'Check that the URL is correct and accessible.',
+      detail: raw,
+    };
+  }
+
+  // Duplicate table
+  if (r.includes('already exists') || r.includes('relation') && r.includes('exist') ||
+      r.includes('duplicate key') || r.includes('unique constraint')) {
+    return {
+      title: 'Table Already Exists',
+      message: 'A table with this name already exists in the target schema. ' +
+               'Choose a different table name, or switch the Mode to "Append" ' +
+               'to add rows to the existing table.',
+      detail: raw,
+    };
+  }
+
+  // Permission denied (database)
+  if (r.includes('permission denied') || r.includes('access denied') ||
+      r.includes('privilege')) {
+    return {
+      title: 'Permission Denied',
+      message: 'The database user does not have permission to create or ' +
+               'write to this table in the selected schema. ' +
+               'Contact your database administrator.',
+      detail: raw,
+    };
+  }
+
+  // PostGIS / database connection
+  if (r.includes('failed to connect') || r.includes('connection to server') ||
+      r.includes('pg connection') || r.includes('database url') ||
+      r.includes('could not connect to server')) {
+    return {
+      title: 'Database Connection Failed',
+      message: 'Could not connect to the PostGIS database. ' +
+               'The database may be unavailable or restarting. ' +
+               'Check the DATABASE_URL environment variable and PostGIS service health.',
+      detail: raw,
+    };
+  }
+
+  // GDAL / ogrinfo / ogr2ogr not installed
+  if (r.includes('ogrinfo not found') || r.includes('ogr2ogr not found') ||
+      r.includes('no such file or directory') && r.includes('ogr')) {
+    return {
+      title: 'GDAL Tools Not Available',
+      message: 'The GDAL command-line tools (ogrinfo / ogr2ogr) could not be ' +
+               'found. Ensure the container is built with a GDAL runtime image.',
+      detail: raw,
+    };
+  }
+
+  // ogr2ogr load failure
+  if (r.includes('ogr2ogr') && r.includes('failed')) {
+    return {
+      title: 'Data Load Failed (ogr2ogr)',
+      message: 'ogr2ogr encountered an error while loading the data into PostGIS. ' +
+               'This can happen with malformed geometry, an unsupported coordinate ' +
+               'system, or a schema mismatch on append.',
+      detail: raw,
+    };
+  }
+
+  // Empty or zero-byte file
+  if (r.includes('empty file') || r.includes('0 bytes') || r.includes('file is empty')) {
+    return {
+      title: 'Empty File',
+      message: 'The file appears to be empty (0 bytes). ' +
+               'Please verify the file and try again.',
+      detail: raw,
+    };
+  }
+
+  // No file / no URL provided
+  if (r.includes('no file or url') || r.includes('no file selected') ||
+      r.includes('please enter a url')) {
+    return {
+      title: 'No Input Provided',
+      message: r.includes('url')
+        ? 'Please enter a URL before clicking Inspect.'
+        : 'Please select a file before clicking Inspect.',
+      detail: null,
+    };
+  }
+
+  // Fallback
+  return {
+    title: 'An Error Occurred',
+    message: 'Something went wrong during the ingest process. ' +
+             'See the technical details below.',
+    detail: raw,
+  };
+}
+
+function showErrorModal(title, message, detail) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-message').textContent = message;
+  const wrapper = document.getElementById('modal-detail-wrapper');
+  if (detail) {
+    document.getElementById('modal-detail').textContent = detail;
+    wrapper.classList.remove('hidden');
+    wrapper.open = false; // collapsed by default
+  } else {
+    wrapper.classList.add('hidden');
+  }
+  document.getElementById('error-modal').classList.remove('hidden');
+}
+
+function closeErrorModal() {
+  document.getElementById('error-modal').classList.add('hidden');
+}
+
+// ESC key closes modal
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeErrorModal();
+});
 
 // ── State ─────────────────────────────────────────────────────
 let currentTab = 'upload';
 let currentFile = null;
 let inspectData = null;   // { source_path, inspect }
 let currentLayerIdx = 0;
+
+// Supported file extensions for client-side pre-validation
+const SUPPORTED_EXTENSIONS = new Set(['.geojson', '.json', '.zip', '.gpkg', '.kml', '.fgb', '.csv', '.shp']);
 
 // ── Tab switching ──────────────────────────────────────────────
 function switchTab(tab) {
@@ -323,17 +567,51 @@ function onDrop(e) {
 function onFileSelected(input) {
   if (input.files.length > 0) setFile(input.files[0]);
 }
+
 function setFile(f) {
+  // Client-side extension check before even hitting the server
+  const nameParts = f.name.split('.');
+  const ext = nameParts.length > 1 ? '.' + nameParts.pop().toLowerCase() : '';
+  if (!SUPPORTED_EXTENSIONS.has(ext)) {
+    // Reset the file input so the user can re-pick
+    document.getElementById('file-input').value = '';
+    showErrorModal(
+      'Unsupported File Type',
+      `"${f.name}" is not a supported spatial file format.\n\n` +
+      'Accepted formats:\n' +
+      '• GeoJSON (.geojson, .json)\n' +
+      '• Shapefile (.zip — must contain .shp, .dbf, .prj)\n' +
+      '• GeoPackage (.gpkg)\n' +
+      '• KML (.kml)\n' +
+      '• FlatGeobuf (.fgb)\n' +
+      '• CSV with coordinates (.csv)',
+      null
+    );
+    return;
+  }
+
+  // Warn on very large files (>200 MB) — the server limit is 500 MB
+  if (f.size > 200 * 1024 * 1024) {
+    showErrorModal(
+      'Large File Warning',
+      `This file is ${formatBytes(f.size)} — large files may take a while to upload and process. ` +
+      'The server limit is 500 MB. Consider using the URL fetch tab for remote files.',
+      null
+    );
+    // Don't return — still allow the user to proceed; the warning was shown
+  }
+
   currentFile = f;
   document.getElementById('file-name').textContent = f.name;
   document.getElementById('file-size').textContent = formatBytes(f.size);
   document.getElementById('file-info').classList.remove('hidden');
   document.getElementById('btn-inspect-upload').classList.remove('hidden');
 }
+
 function formatBytes(b) {
   if (b < 1024) return b + ' B';
-  if (b < 1048576) return (b/1024).toFixed(1) + ' KB';
-  return (b/1048576).toFixed(1) + ' MB';
+  if (b < 1048576) return (b / 1024).toFixed(1) + ' KB';
+  return (b / 1048576).toFixed(1) + ' MB';
 }
 
 // ── URL quick-fill ─────────────────────────────────────────────
@@ -341,11 +619,56 @@ function fillUrl(url) {
   document.getElementById('url-input').value = url;
 }
 
+// ── Table name validation ──────────────────────────────────────
+function validateTableName(val) {
+  const hint = document.getElementById('table-hint');
+  if (!val) {
+    hint.className = 'text-xs mt-1 text-amber-600 dark:text-amber-400';
+    hint.textContent = 'Table name is required.';
+    hint.classList.remove('hidden');
+    return false;
+  }
+  if (val.length > 63) {
+    hint.className = 'text-xs mt-1 text-red-600 dark:text-red-400';
+    hint.textContent = 'Name too long — PostgreSQL identifiers must be ≤ 63 characters.';
+    hint.classList.remove('hidden');
+    return false;
+  }
+  if (!/^[a-z_][a-z0-9_]*$/.test(val)) {
+    hint.className = 'text-xs mt-1 text-amber-600 dark:text-amber-400';
+    hint.textContent = 'Use only lowercase letters, digits, and underscores. Must start with a letter or underscore.';
+    hint.classList.remove('hidden');
+    return false;
+  }
+  hint.className = 'text-xs mt-1 text-emerald-600 dark:text-emerald-400';
+  hint.textContent = '✓ Valid PostgreSQL identifier';
+  hint.classList.remove('hidden');
+  return true;
+}
+
 // ── Inspect ───────────────────────────────────────────────────
 async function doInspect(source) {
   const btn = source === 'upload'
     ? document.getElementById('btn-inspect-upload')
     : document.getElementById('btn-inspect-url');
+
+  // Client-side URL format check
+  if (source === 'url') {
+    const urlVal = document.getElementById('url-input').value.trim();
+    if (!urlVal) {
+      showErrorModal('No URL Provided', 'Please enter a URL before clicking Inspect.', null);
+      return;
+    }
+    try { new URL(urlVal); } catch {
+      showErrorModal(
+        'Invalid URL',
+        'The URL you entered does not appear to be valid. ' +
+        'URLs must start with https:// or http:// and include a hostname.',
+        null
+      );
+      return;
+    }
+  }
 
   btn.disabled = true;
   btn.textContent = '⏳ Inspecting…';
@@ -360,19 +683,19 @@ async function doInspect(source) {
       fd.append('file', currentFile);
     } else {
       const url = document.getElementById('url-input').value.trim();
-      if (!url) throw new Error('Please enter a URL');
       fd.append('url', url);
     }
 
     const resp = await fetch('/ingest/api/inspect', { method: 'POST', body: fd });
     if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error || 'Inspect failed');
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      throw new Error(err.error || `HTTP ${resp.status}`);
     }
     inspectData = await resp.json();
     showInspectCard(inspectData);
   } catch (e) {
-    alert('Inspect error: ' + e.message);
+    const { title, message, detail } = classifyError(e.message);
+    showErrorModal(title, message, detail);
   } finally {
     btn.disabled = false;
     btn.textContent = source === 'upload' ? '🔍 Inspect File' : '🔍 Inspect URL';
@@ -382,7 +705,12 @@ async function doInspect(source) {
 function showInspectCard(data) {
   const layers = data.inspect.layers;
   if (!layers || layers.length === 0) {
-    alert('No layers found in this file.');
+    showErrorModal(
+      'No Spatial Layers Found',
+      'The file opened successfully but contains no spatial layers. ' +
+      'Verify that the file contains vector geometry data and is not empty.',
+      null
+    );
     return;
   }
 
@@ -405,8 +733,9 @@ function showInspectCard(data) {
   currentLayerIdx = 0;
   renderLayerStats(layers[0]);
 
-  document.getElementById('opt-table').value =
-    layers[0].name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+  const autoName = layers[0].name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+  document.getElementById('opt-table').value = autoName;
+  validateTableName(autoName);
 
   document.getElementById('inspect-card').classList.remove('hidden');
 }
@@ -416,8 +745,9 @@ function onLayerChange() {
   currentLayerIdx = idx;
   const layer = inspectData.inspect.layers[idx];
   renderLayerStats(layer);
-  document.getElementById('opt-table').value =
-    layer.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+  const autoName = layer.name.toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+  document.getElementById('opt-table').value = autoName;
+  validateTableName(autoName);
 }
 
 function renderLayerStats(layer) {
@@ -458,7 +788,15 @@ async function doLoad() {
   if (!inspectData) return;
 
   const table = document.getElementById('opt-table').value.trim();
-  if (!table) { alert('Please enter a table name'); return; }
+  if (!validateTableName(table)) {
+    showErrorModal(
+      'Invalid Table Name',
+      'Please enter a valid PostgreSQL table name before loading. ' +
+      'Use only lowercase letters, digits, and underscores, starting with a letter or underscore.',
+      null
+    );
+    return;
+  }
 
   const schema = document.getElementById('opt-schema').value;
   const mode   = document.getElementById('opt-mode').value;
@@ -487,15 +825,15 @@ async function doLoad() {
       }),
     });
     if (!resp.ok) {
-      const err = await resp.json();
-      throw new Error(err.error || 'Load request failed');
+      const err = await resp.json().catch(() => ({ error: `HTTP ${resp.status}` }));
+      throw new Error(err.error || `HTTP ${resp.status}`);
     }
     const { job_id } = await resp.json();
     listenToJob(job_id);
   } catch (e) {
     showError(e.message);
     document.getElementById('btn-load').disabled = false;
-    document.getElementById('btn-load').textContent = 'Load into PostGIS';
+    document.getElementById('btn-load').innerHTML = resetLoadBtnHTML();
   }
 }
 
@@ -521,7 +859,12 @@ function listenToJob(jobId) {
   };
   es.onerror = () => {
     es.close();
-    appendLog('Connection closed.', 'done');
+    // Only show this if we haven't already completed/failed
+    const errorBox = document.getElementById('error-box');
+    const finalStats = document.getElementById('final-stats');
+    if (errorBox.classList.contains('hidden') && finalStats.classList.contains('hidden')) {
+      showError('Connection to the server was lost. The load job may still be running — refresh the page to check.');
+    }
     resetLoadBtn();
   };
 }
@@ -573,29 +916,36 @@ function showFinalStats(data) {
   if (!data) return;
   const grid = document.getElementById('stats-grid');
   grid.innerHTML = [
-    { label: 'Total Rows',    value: (data.total_rows || 0).toLocaleString(), color: 'text-emerald-700 dark:text-emerald-400' },
-    { label: 'Null Geom',     value: data.null_geom    || 0, color: data.null_geom    > 0 ? 'text-amber-600 dark:text-amber-400'   : 'text-emerald-700 dark:text-emerald-400' },
-    { label: 'Invalid Geom',  value: data.invalid_geom || 0, color: data.invalid_geom > 0 ? 'text-red-600 dark:text-red-400'       : 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Total Rows',   value: (data.total_rows || 0).toLocaleString(), color: 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Null Geom',    value: data.null_geom    || 0, color: data.null_geom    > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-700 dark:text-emerald-400' },
+    { label: 'Invalid Geom', value: data.invalid_geom || 0, color: data.invalid_geom > 0 ? 'text-red-600 dark:text-red-400'    : 'text-emerald-700 dark:text-emerald-400' },
   ].map(s => `
     <div class="bg-white dark:bg-gray-800 rounded-lg p-3 text-center border border-emerald-100 dark:border-emerald-800">
       <p class="text-xl font-bold ${s.color}">${s.value}</p>
       <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">${s.label}</p>
     </div>`).join('');
-
   document.getElementById('final-stats').classList.remove('hidden');
 }
 
-function showError(msg) {
-  document.getElementById('error-msg').textContent = msg;
+function showError(raw) {
+  // Show classified message in the inline error-box
+  const { title, message, detail } = classifyError(raw);
+  document.getElementById('error-msg').textContent = message;
   document.getElementById('error-box').classList.remove('hidden');
+  // Also pop the modal so the error is impossible to miss
+  showErrorModal(title, message, detail !== raw ? detail : raw);
+}
+
+function resetLoadBtnHTML() {
+  return `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+  </svg> Load into PostGIS`;
 }
 
 function resetLoadBtn() {
   const btn = document.getElementById('btn-load');
   btn.disabled = false;
-  btn.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
-  </svg> Load into PostGIS`;
+  btn.innerHTML = resetLoadBtnHTML();
 }
 
 function showProgressCard() {
@@ -611,7 +961,7 @@ function hideProgressCard() {
 
 function escHtml(s) {
   return String(s).replace(/[&<>"']/g, c =>
-    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 </script>
 </body>
