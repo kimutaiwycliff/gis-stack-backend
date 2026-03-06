@@ -29,6 +29,7 @@ pub struct JobState {
     pub id: Uuid,
     pub stage: JobStage,
     pub log: Vec<String>,
+    pub events: Vec<SseEvent>, // full event history for late SSE subscribers
     pub created_at: DateTime<Utc>,
     pub tx: broadcast::Sender<SseEvent>,
 }
@@ -46,6 +47,7 @@ pub fn create_job(store: &JobStore) -> (Uuid, broadcast::Receiver<SseEvent>) {
         id,
         stage: JobStage::Pending,
         log: Vec::new(),
+        events: Vec::new(),
         created_at: Utc::now(),
         tx,
     }));
@@ -58,7 +60,8 @@ pub async fn emit(store: &JobStore, id: Uuid, event: SseEvent) {
         let mut job = entry.lock().await;
         job.stage = event.stage.clone();
         job.log.push(event.message.clone());
-        let _ = job.tx.send(event); // ignore if no listeners yet
+        job.events.push(event.clone());
+        let _ = job.tx.send(event); // ignore if no live listeners yet
     }
 }
 

@@ -1,0 +1,9 @@
+/Users/wycliffkimutai/Desktop/PROJECTS 2026/gis-stack/gis-ingest/target/debug/deps/futures_macro-ce67ce519450d81f.d: /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/lib.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/executor.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/join.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/select.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/stream_select.rs
+
+/Users/wycliffkimutai/Desktop/PROJECTS 2026/gis-stack/gis-ingest/target/debug/deps/libfutures_macro-ce67ce519450d81f.dylib: /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/lib.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/executor.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/join.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/select.rs /Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/stream_select.rs
+
+/Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/lib.rs:
+/Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/executor.rs:
+/Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/join.rs:
+/Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/select.rs:
+/Users/wycliffkimutai/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/futures-macro-0.3.32/src/stream_select.rs:

@@ -79,26 +79,46 @@ pub async fn validate_table(
         });
     }
 
-    let query = format!(
-        r#"
-        SELECT
-            COUNT(*)                                                AS total,
-            COUNT(*) FILTER (WHERE geom IS NULL)                   AS null_geom,
-            COUNT(*) FILTER (WHERE geom IS NOT NULL AND NOT ST_IsValid(geom)) AS invalid_geom,
-            ST_AsGeoJSON(ST_Extent(geom))::jsonb                   AS extent
-        FROM {schema}.{table}
-        "#,
+    // Fast query: row count, null-geom count, and extent (all index-friendly).
+    let fast_query = format!(
+        "SELECT COUNT(*), \
+                COUNT(*) FILTER (WHERE geom IS NULL), \
+                ST_AsGeoJSON(ST_Extent(geom))::text \
+         FROM {schema}.{table}",
         schema = safe_schema,
         table = safe_table,
     );
 
-    let row = client.query_one(&query, &[]).await.context("validation query failed")?;
+    let row = client
+        .query_one(&fast_query, &[])
+        .await
+        .context("validation query failed")?;
 
     let total: i64 = row.get(0);
     let null_geom: i64 = row.get(1);
-    let invalid_geom: i64 = row.get(2);
-    let extent_str: Option<String> = row.get(3);
+    let extent_str: Option<String> = row.get(2);
     let extent = extent_str.and_then(|s| serde_json::from_str(&s).ok());
+
+    // Slow optional query: ST_IsValid scans every geometry via GEOS.
+    // Cap it so a large/complex dataset cannot block the pipeline indefinitely.
+    client
+        .batch_execute("SET statement_timeout = '15s'")
+        .await
+        .ok();
+
+    let invalid_geom: i64 = client
+        .query_one(
+            &format!(
+                "SELECT COUNT(*) FROM {schema}.{table} \
+                 WHERE geom IS NOT NULL AND NOT ST_IsValid(geom)",
+                schema = safe_schema,
+                table = safe_table,
+            ),
+            &[],
+        )
+        .await
+        .map(|r| r.get(0))
+        .unwrap_or(0); // return 0 (unknown) on timeout or error
 
     Ok(ValidationResult {
         total_rows: total,

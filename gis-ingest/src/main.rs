@@ -132,15 +132,20 @@ async fn inspect_handler(
         }
     }
 
-    let (inspect_path, _tmp_guard) = if let Some(u) = url {
+    // keep() prevents auto-deletion when this handler returns so that the load
+    // endpoint can still find the file.  The directory persists until the OS cleans
+    // up /tmp (acceptable for a dev/internal tool).
+    let inspect_path = if let Some(u) = url {
         let ext = inspect::url_extension(&u);
         let dest = tmp.path().join(format!("download.{}", ext));
         inspect::download_url(&u, &dest)
             .await
             .map_err(|e| error::AppError(e))?;
-        (dest, Some(tmp))
+        let _ = tmp.keep(); // prevent auto-deletion when this handler returns
+        dest
     } else if let Some(fp) = file_path {
-        (fp, Some(tmp))
+        let _ = tmp.keep(); // prevent auto-deletion when this handler returns
+        fp
     } else {
         return Err(error::AppError(anyhow::anyhow!(
             "No file or URL provided. Send a multipart field named 'file' or 'url'."
@@ -219,11 +224,13 @@ async fn job_events_handler(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,
 ) -> Response {
-    let rx = {
+    // Snapshot historical events AND subscribe to the live channel atomically
+    // so we never miss an event regardless of when the browser connects.
+    let (past_events, rx) = {
         match state.jobs.get(&id) {
             Some(entry) => {
-                let job = entry.value().blocking_lock();
-                job.tx.subscribe()
+                let job = entry.value().lock().await;
+                (job.events.clone(), job.tx.subscribe())
             }
             None => {
                 return (
@@ -235,13 +242,19 @@ async fn job_events_handler(
         }
     };
 
-    let stream = BroadcastStream::new(rx)
-        .filter_map(|msg| {
-            let msg = msg.ok()?;
-            let data = serde_json::to_string(&msg).ok()?;
-            Some(Ok::<Event, Infallible>(Event::default().data(data)))
-        })
-        .take_while(|_| true);
+    // Replay already-emitted events first, then stream live ones.
+    let replay = tokio_stream::iter(past_events).map(|event| {
+        let data = serde_json::to_string(&event).unwrap_or_default();
+        Ok::<Event, Infallible>(Event::default().data(data))
+    });
+
+    let live = BroadcastStream::new(rx).filter_map(|msg| {
+        let msg = msg.ok()?;
+        let data = serde_json::to_string(&msg).ok()?;
+        Some(Ok::<Event, Infallible>(Event::default().data(data)))
+    });
+
+    let stream = replay.chain(live);
 
     Sse::new(stream)
         .keep_alive(KeepAlive::new().interval(Duration::from_secs(10)))
